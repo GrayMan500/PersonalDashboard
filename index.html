@@ -214,6 +214,8 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
       <button data-page="gym"><span class="ic">&#9211;</span>Gym Log</button>
       <button data-page="want"><span class="ic">&#9788;</span>Want To Do</button>
       <button data-page="projects"><span class="ic">&#9638;</span>Projects</button>
+      <button data-page="inventory"><span class="ic">&#9707;</span>Inventory</button>
+      <button data-page="wishlist"><span class="ic">&#9734;</span>Wish-List</button>
     </nav>
     <div class="userbox" id="userbox"></div>
   </aside>
@@ -312,6 +314,37 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
       <div class="grid panels" id="projList"></div>
     </section>
 
+    <!-- ---------- INVENTORY ---------- -->
+    <section class="page" id="page-inventory">
+      <div class="phead">
+        <div><h2>Inventory</h2><div class="sub">Bins &amp; loose items</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost sm" id="invExportBtn">&#8681; Export</button>
+          <button class="btn ghost sm" id="invImportBtn">&#8679; Import</button>
+          <input type="file" id="invImportFile" accept=".csv" style="display:none">
+          <button class="btn ghost sm" id="addBinBtn">&#43; Bin</button>
+          <button class="btn" id="addItemBtn">&#43; Item</button>
+        </div>
+      </div>
+      <div class="grid stats" id="invStats"></div>
+      <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px">
+        <input id="invSearch" placeholder="Search items..." style="flex:1;min-width:160px">
+        <select id="invCat" style="width:auto;min-width:130px"></select>
+        <select id="invBin" style="width:auto;min-width:130px"></select>
+      </div>
+      <div id="invList"></div>
+    </section>
+
+    <!-- ---------- WISH-LIST ---------- -->
+    <section class="page" id="page-wishlist">
+      <div class="phead">
+        <div><h2>Wish-List</h2><div class="sub">Things to get</div></div>
+        <button class="btn" id="addWishBtn">&#43; Add item</button>
+      </div>
+      <div class="grid stats" id="wishStats"></div>
+      <div class="listcard" id="wishList"></div>
+    </section>
+
   </main>
 </div>
 
@@ -365,6 +398,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const state = { user:null, todos:[], wants:[], gym:[], projects:[], events:[],
+                bins:[], inventory:[], wishlist:[], invFilter:{search:"",cat:"all",bin:"all"}, pendingBin:null,
                 calToken:null, weekStart:startOfWeek(new Date()) };
 let unsub = [];
 
@@ -408,6 +442,7 @@ onAuthStateChanged(auth, user=>{
     renderUser();
     attachListeners();
     loadWeather();
+    handleHashRoute();
   } else {
     state.user=null;
     unsub.forEach(u=>u()); unsub=[];
@@ -433,6 +468,9 @@ function attachListeners(){
   unsub.push(onSnapshot(col("wants"),    s=>{ state.wants    = snap(s); renderWants(); renderHome(); }));
   unsub.push(onSnapshot(col("projects"), s=>{ state.projects = snap(s); renderProjects(); renderHome(); }));
   unsub.push(onSnapshot(col("gym"),      s=>{ state.gym      = snap(s); renderGym(); renderHome(); }));
+  unsub.push(onSnapshot(col("bins"),      s=>{ state.bins      = snap(s); renderInventory(); applyPendingBin(); }));
+  unsub.push(onSnapshot(col("inventory"), s=>{ state.inventory = snap(s); renderInventory(); }));
+  unsub.push(onSnapshot(col("wishlist"),  s=>{ state.wishlist  = snap(s); renderWishlist(); }));
 }
 function snap(s){ const a=[]; s.forEach(d=>a.push({id:d.id, ...d.data()})); return a; }
 async function save(name, data, id){
@@ -846,7 +884,255 @@ function eventModal(ev=null){
     closeModal(); refreshEvents();
   };
 }
+
+/* ============================================================
+   INVENTORY  (bins + loose items, QR, CSV, categories, value, link)
+   ============================================================ */
+function binName(id){ const b=state.bins.find(x=>x.id===id); return b?b.name:null; }
+function itemValue(it){ return (+it.value||0)*(+it.qty||1); }
+
+$("#addItemBtn").addEventListener("click", ()=>itemModal());
+$("#addBinBtn").addEventListener("click", ()=>binModal());
+$("#invExportBtn").addEventListener("click", exportCSV);
+$("#invImportBtn").addEventListener("click", ()=>$("#invImportFile").click());
+$("#invImportFile").addEventListener("change", importCSV);
+$("#invSearch").addEventListener("input", e=>{ state.invFilter.search=e.target.value.toLowerCase(); renderInvList(); });
+$("#invCat").addEventListener("change", e=>{ state.invFilter.cat=e.target.value; renderInvList(); });
+$("#invBin").addEventListener("change", e=>{ state.invFilter.bin=e.target.value; renderInvList(); });
+
+function itemModal(it={}){
+  const opts = `<option value="">Loose / no bin</option>` +
+    state.bins.map(b=>`<option value="${b.id}"${it.binId===b.id?" selected":""}>${esc(b.name)}</option>`).join("");
+  openModal(`<h3><span class="ic">&#9707;</span>${it.id?"Edit item":"New item"}</h3>
+    <div class="frow">
+      <div class="field" style="flex:3"><label>Name</label><input id="i_name" value="${esc(it.name||"")}"></div>
+      <div class="field" style="flex:1"><label>Qty</label><input type="number" id="i_qty" value="${it.qty||1}" min="0"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Bin</label><select id="i_bin">${opts}</select></div>
+      <div class="field"><label>Category</label><input id="i_cat" value="${esc(it.category||"")}" placeholder="electronics, kitchen..."></div>
+    </div>
+    <div class="field"><label>Value ($ each)</label><input type="number" id="i_val" value="${it.value!=null?it.value:""}" step="0.01" min="0"></div>
+    <div class="field"><label>Retail link (optional)</label><input id="i_link" value="${esc(it.link||"")}" placeholder="https://..."></div>
+    <div class="field"><label>Notes</label><textarea id="i_notes" rows="2">${esc(it.notes||"")}</textarea></div>
+    <div class="modal-actions">
+      ${it.id?`<button class="btn ghost left" id="i_del">Delete</button>`:""}
+      <button class="btn ghost" id="i_cancel">Cancel</button>
+      <button class="btn" id="i_save">Save</button></div>`);
+  $("#i_cancel").onclick=closeModal;
+  if(it.id)$("#i_del").onclick=()=>{ remove("inventory",it.id); closeModal(); toast("Item deleted"); };
+  $("#i_save").onclick=()=>{ const name=$("#i_name").value.trim(); if(!name)return;
+    save("inventory",{ name, qty:+$("#i_qty").value||1, binId:$("#i_bin").value||null,
+      category:$("#i_cat").value.trim(), value:$("#i_val").value!==""?+$("#i_val").value:null,
+      link:$("#i_link").value.trim(), notes:$("#i_notes").value.trim() }, it.id);
+    closeModal(); toast(it.id?"Item updated":"Item added"); };
+}
+function binModal(b={}){
+  openModal(`<h3><span class="ic">&#9707;</span>${b.id?"Edit bin":"New bin"}</h3>
+    <div class="field"><label>Bin name / label</label><input id="b_name" value="${esc(b.name||"")}" placeholder="e.g. Garage A1"></div>
+    <div class="field"><label>Location</label><input id="b_loc" value="${esc(b.location||"")}" placeholder="closet, garage shelf..."></div>
+    <div class="field"><label>Notes</label><textarea id="b_notes" rows="2">${esc(b.note||"")}</textarea></div>
+    <div class="modal-actions">
+      ${b.id?`<button class="btn ghost left" id="b_del">Delete</button>`:""}
+      <button class="btn ghost" id="b_cancel">Cancel</button>
+      <button class="btn" id="b_save">Save</button></div>`);
+  $("#b_cancel").onclick=closeModal;
+  if(b.id)$("#b_del").onclick=async()=>{
+    const inside=state.inventory.filter(i=>i.binId===b.id);
+    for(const i of inside) await save("inventory",{binId:null},i.id);
+    await remove("bins",b.id); closeModal();
+    toast(inside.length?`Bin deleted, ${inside.length} item(s) now loose`:"Bin deleted"); };
+  $("#b_save").onclick=()=>{ const name=$("#b_name").value.trim(); if(!name)return;
+    save("bins",{name,location:$("#b_loc").value.trim(),note:$("#b_notes").value.trim()},b.id);
+    closeModal(); toast("Bin saved"); };
+}
+function qrModal(bin){
+  const url = location.origin+location.pathname+"#bin="+bin.id;
+  openModal(`<h3><span class="ic">&#9707;</span>${esc(bin.name)}</h3>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
+      <div id="qrbox" style="background:#fff;padding:14px;border-radius:10px"></div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--txt-3);text-align:center;word-break:break-all">${esc(url)}</div>
+      <div style="font-size:12px;color:var(--txt-2);text-align:center">Print this, stick it on the bin, and scan with your phone camera to jump straight to its contents.</div>
+    </div>
+    <div class="modal-actions"><button class="btn ghost" id="q_close">Close</button><button class="btn" id="q_print">Print label</button></div>`);
+  $("#qrbox").innerHTML="";
+  new QRCode($("#qrbox"), { text:url, width:200, height:200, correctLevel:QRCode.CorrectLevel.M });
+  $("#q_close").onclick=closeModal;
+  $("#q_print").onclick=()=>{
+    const img=$("#qrbox").querySelector("img")||$("#qrbox").querySelector("canvas");
+    const data=img.tagName==="IMG"?img.src:img.toDataURL();
+    const w=window.open("","_blank");
+    w.document.write(`<div style="font-family:sans-serif;text-align:center;padding:30px"><h2>${esc(bin.name)}</h2>${bin.location?`<p>${esc(bin.location)}</p>`:""}<img src="${data}" style="width:240px"></div>`);
+    w.document.close(); w.focus(); setTimeout(()=>w.print(),250);
+  };
+}
+function renderInventory(){
+  const cats=[...new Set(state.inventory.map(i=>i.category).filter(Boolean))].sort();
+  const cur=state.invFilter;
+  $("#invCat").innerHTML = `<option value="all">All categories</option>`+cats.map(c=>`<option value="${esc(c)}"${cur.cat===c?" selected":""}>${esc(c)}</option>`).join("");
+  $("#invBin").innerHTML = `<option value="all">All bins</option><option value="loose"${cur.bin==="loose"?" selected":""}>Loose items</option>`+
+    state.bins.map(b=>`<option value="${b.id}"${cur.bin===b.id?" selected":""}>${esc(b.name)}</option>`).join("");
+  const totalVal=state.inventory.reduce((s,i)=>s+itemValue(i),0);
+  const loose=state.inventory.filter(i=>!i.binId).length;
+  $("#invStats").innerHTML =
+    `<div class="stat accent"><div class="lbl">&#9776; Items</div><div class="val">${state.inventory.length}</div><div class="note">${loose} loose</div></div>
+     <div class="stat ok"><div class="lbl">&#36; Total value</div><div class="val" style="font-size:24px">${totalVal.toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:0})}</div><div class="note">across inventory</div></div>
+     <div class="stat amber"><div class="lbl">&#9707; Bins</div><div class="val">${state.bins.length}</div><div class="note">containers</div></div>
+     <div class="stat"><div class="lbl">&#9636; Categories</div><div class="val">${cats.length}</div><div class="note">in use</div></div>`;
+  renderInvList();
+}
+function itemRow(i){
+  return `<div class="row">
+    <div class="t" data-edit-item="${i.id}" style="cursor:pointer"><b>${esc(i.name)}</b>
+      <small>${i.qty>1?`\u00D7${i.qty}  `:""}${i.category?esc(i.category):""}${i.notes?"  \u00B7  "+esc(i.notes):""}</small></div>
+    ${i.value!=null?`<span class="pill due">${itemValue(i).toLocaleString(undefined,{style:"currency",currency:"USD"})}</span>`:""}
+    ${i.link?`<a class="iconbtn" href="${esc(i.link)}" target="_blank" rel="noopener" title="Retail link">&#8599;</a>`:""}
+    <button class="iconbtn del" data-del-item="${i.id}">&#10005;</button></div>`;
+}
+function renderInvList(){
+  const f=state.invFilter;
+  const match=i=>{
+    if(f.search && !((i.name||"").toLowerCase().includes(f.search) || (i.category||"").toLowerCase().includes(f.search) || (i.notes||"").toLowerCase().includes(f.search))) return false;
+    if(f.cat!=="all" && i.category!==f.cat) return false;
+    return true;
+  };
+  const host=$("#invList");
+  if(!state.inventory.length && !state.bins.length){ host.innerHTML=`<div class="listcard"><div class="row"><div class="empty">Empty inventory. Add a bin or a loose item to start.</div></div></div>`; return; }
+  const filtering = f.search || f.cat!=="all";
+  let html="";
+  if(f.bin==="all" || f.bin==="loose"){
+    const loose=state.inventory.filter(i=>!i.binId && match(i));
+    if(loose.length || (f.bin==="loose")) html+=`<div class="section-title">Loose items (${loose.length})</div><div class="listcard">${loose.length?loose.map(itemRow).join(""):`<div class="row"><div class="empty">None.</div></div>`}</div>`;
+  }
+  if(f.bin!=="loose"){
+    state.bins.filter(b=> f.bin==="all" || f.bin===b.id).forEach(b=>{
+      const bi=state.inventory.filter(i=>i.binId===b.id && match(i));
+      if(filtering && !bi.length) return;
+      const val=bi.reduce((s,i)=>s+itemValue(i),0);
+      html+=`<div class="section-title" style="display:flex;align-items:center;gap:10px">
+          <span>${esc(b.name)} (${bi.length})${b.location?` &middot; ${esc(b.location)}`:""}${val?` &middot; ${val.toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:0})}`:""}</span>
+          <button class="btn ghost sm" data-qr-bin="${b.id}" style="margin-left:auto">QR</button>
+          <button class="btn ghost sm" data-edit-bin="${b.id}">Edit</button></div>
+        <div class="listcard">${bi.length?bi.map(itemRow).join(""):`<div class="row"><div class="empty">Empty bin.</div></div>`}</div>`;
+    });
+  }
+  host.innerHTML = html || `<div class="listcard"><div class="row"><div class="empty">No items match your filters.</div></div></div>`;
+}
+document.body.addEventListener("click", e=>{
+  const ei=e.target.closest("[data-edit-item]"); if(ei){ const i=state.inventory.find(x=>x.id===ei.dataset.editItem); if(i)itemModal(i); }
+  const di=e.target.closest("[data-del-item]"); if(di) remove("inventory",di.dataset.delItem);
+  const eb=e.target.closest("[data-edit-bin]"); if(eb){ const b=state.bins.find(x=>x.id===eb.dataset.editBin); if(b)binModal(b); }
+  const qb=e.target.closest("[data-qr-bin]"); if(qb){ const b=state.bins.find(x=>x.id===qb.dataset.qrBin); if(b)qrModal(b); }
+});
+
+/* QR deep-link: phone scans bin label -> opens this bin */
+function handleHashRoute(){ const m=location.hash.match(/bin=([^&]+)/); if(m) state.pendingBin=decodeURIComponent(m[1]); }
+function applyPendingBin(){
+  if(state.pendingBin && state.bins.find(b=>b.id===state.pendingBin)){
+    state.invFilter.bin=state.pendingBin; state.pendingBin=null; goto("inventory"); renderInventory();
+  }
+}
+window.addEventListener("hashchange", ()=>{ handleHashRoute(); applyPendingBin(); });
+
+/* CSV */
+function csvCell(v){ v=v==null?"":String(v); return /[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v; }
+function exportCSV(){
+  const header=["Name","Quantity","Bin","Category","Value","Link","Notes"];
+  const rows=state.inventory.map(i=>[i.name,i.qty||1,binName(i.binId)||"",i.category||"",i.value!=null?i.value:"",i.link||"",i.notes||""]);
+  const csv=[header,...rows].map(r=>r.map(csvCell).join(",")).join("\n");
+  const blob=new Blob([csv],{type:"text/csv"}); const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="inventory.csv"; a.click(); URL.revokeObjectURL(a.href);
+  toast("Inventory exported");
+}
+function parseCSV(text){
+  const rows=[]; let row=[],cur="",q=false;
+  for(let i=0;i<text.length;i++){ const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else if(c==='"') q=true;
+    else if(c===',') { row.push(cur); cur=""; }
+    else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=""; }
+    else if(c!=='\r') cur+=c;
+  }
+  if(cur.length||row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r=>r.some(c=>c.trim()!==""));
+}
+async function importCSV(e){
+  const file=e.target.files[0]; if(!file)return;
+  const text=await file.text(); const rows=parseCSV(text); e.target.value="";
+  if(rows.length<2){ toast("CSV looks empty"); return; }
+  const head=rows[0].map(h=>h.trim().toLowerCase());
+  const idx=n=>head.indexOf(n);
+  const binCache={}; state.bins.forEach(b=>binCache[b.name.toLowerCase()]=b.id);
+  let n=0;
+  for(const r of rows.slice(1)){
+    const name=(r[idx("name")]||"").trim(); if(!name)continue;
+    const binNm=(r[idx("bin")]||"").trim(); let binId=null;
+    if(binNm){ const key=binNm.toLowerCase();
+      if(!binCache[key]){ const ref=await addDoc(col("bins"),{name:binNm,location:"",note:"",created:Date.now()}); binCache[key]=ref.id; }
+      binId=binCache[key]; }
+    const valRaw=(r[idx("value")]||"").replace(/[$,]/g,"").trim();
+    await addDoc(col("inventory"),{ name, qty:+(r[idx("quantity")]||1)||1, binId,
+      category:(r[idx("category")]||"").trim(), value:valRaw!==""?+valRaw:null,
+      link:(r[idx("link")]||"").trim(), notes:(r[idx("notes")]||"").trim(), created:Date.now() });
+    n++;
+  }
+  toast(`Imported ${n} item(s)`);
+}
+
+/* ============================================================
+   WISH-LIST  (link, price, priority; "Got it" -> Inventory)
+   ============================================================ */
+$("#addWishBtn").addEventListener("click", ()=>wishModal());
+function wishModal(w={}){
+  openModal(`<h3><span class="ic">&#9734;</span>${w.id?"Edit item":"Add to wish-list"}</h3>
+    <div class="field"><label>Item</label><input id="ws_name" value="${esc(w.name||"")}"></div>
+    <div class="field"><label>Link</label><input id="ws_link" value="${esc(w.link||"")}" placeholder="https://..."></div>
+    <div class="frow">
+      <div class="field"><label>Price ($)</label><input type="number" id="ws_price" value="${w.price!=null?w.price:""}" step="0.01" min="0"></div>
+      <div class="field"><label>Priority</label><select id="ws_pri">
+        <option value="lo"${w.priority==="lo"?" selected":""}>Low</option>
+        <option value="med"${w.priority==="med"?" selected":""}>Medium</option>
+        <option value="hi"${w.priority==="hi"?" selected":""}>High</option></select></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="ws_notes" rows="2">${esc(w.notes||"")}</textarea></div>
+    <div class="modal-actions">
+      ${w.id?`<button class="btn ghost left" id="ws_del">Delete</button>`:""}
+      <button class="btn ghost" id="ws_cancel">Cancel</button>
+      <button class="btn" id="ws_save">Save</button></div>`);
+  $("#ws_cancel").onclick=closeModal;
+  if(w.id)$("#ws_del").onclick=()=>{ remove("wishlist",w.id); closeModal(); };
+  $("#ws_save").onclick=()=>{ const name=$("#ws_name").value.trim(); if(!name)return;
+    save("wishlist",{name,link:$("#ws_link").value.trim(),price:$("#ws_price").value!==""?+$("#ws_price").value:null,
+      priority:$("#ws_pri").value,notes:$("#ws_notes").value.trim()},w.id);
+    closeModal(); toast("Saved"); };
+}
+function renderWishlist(){
+  const pr={hi:0,med:1,lo:2};
+  const items=[...state.wishlist].sort((a,b)=>(pr[a.priority||"lo"]-pr[b.priority||"lo"]) || ((b.price||0)-(a.price||0)));
+  const total=items.reduce((s,w)=>s+(+w.price||0),0);
+  $("#wishStats").innerHTML =
+    `<div class="stat accent"><div class="lbl">&#9734; Items</div><div class="val">${items.length}</div><div class="note">on the list</div></div>
+     <div class="stat amber"><div class="lbl">&#36; Total</div><div class="val" style="font-size:24px">${total.toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:0})}</div><div class="note">if you bought it all</div></div>`;
+  $("#wishList").innerHTML = items.length ? items.map(w=>{
+    const lbl={hi:"high",med:"med",lo:"low"}[w.priority||"lo"];
+    return `<div class="row">
+      <div class="t" data-edit-wish="${w.id}" style="cursor:pointer"><b>${esc(w.name)}</b>${w.notes?`<small>${esc(w.notes)}</small>`:""}</div>
+      ${w.price!=null?`<span class="pill due">${(+w.price).toLocaleString(undefined,{style:"currency",currency:"USD"})}</span>`:""}
+      <span class="pill ${w.priority||"lo"}">${lbl}</span>
+      ${w.link?`<a class="iconbtn" href="${esc(w.link)}" target="_blank" rel="noopener" title="Open link">&#8599;</a>`:""}
+      <button class="btn ghost sm" data-gotit="${w.id}">Got it &#8594;</button>
+      <button class="iconbtn del" data-del-wish="${w.id}">&#10005;</button></div>`;
+  }).join("") : `<div class="row"><div class="empty">Nothing on the wish-list yet.</div></div>`;
+}
+document.body.addEventListener("click", e=>{
+  const ew=e.target.closest("[data-edit-wish]"); if(ew){ const w=state.wishlist.find(x=>x.id===ew.dataset.editWish); if(w)wishModal(w); }
+  const dw=e.target.closest("[data-del-wish]"); if(dw) remove("wishlist",dw.dataset.delWish);
+  const g=e.target.closest("[data-gotit]"); if(g){ const w=state.wishlist.find(x=>x.id===g.dataset.gotit);
+    if(w){ save("inventory",{name:w.name,qty:1,binId:null,category:"",value:w.price!=null?+w.price:null,link:w.link||"",notes:w.notes||""});
+      remove("wishlist",w.id); toast("Moved to Inventory"); } }
+});
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </body>
 </html>
