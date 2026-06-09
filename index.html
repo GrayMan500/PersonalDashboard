@@ -1,1 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c0f14; --bg-2:#11151c; --panel:#151b24; --panel-2:#1b2331;
+  --line:#26303f; --line-2:#33415a;
+  --txt:#e7edf5; --txt-2:#93a3b8; --txt-3:#5d6c80;
+  --accent:#39c8e0; --accent-dim:#19586a; --accent-bg:#0e2730;
+  --amber:#f2b138; --amber-bg:#2c2310;
+  --danger:#ff6b6b; --danger-bg:#2c1414;
+  --ok:#4fd18b; --ok-bg:#0f2a1d;
+  --r:10px; --r-sm:7px;
+  --mono:'IBM Plex Mono',monospace; --disp:'Chakra Petch',sans-serif; --body:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--txt);font-family:var(--body);font-size:15px;line-height:1.55;
+  background-image:radial-gradient(circle at 18% -10%, #142031 0, transparent 45%),radial-gradient(circle at 100% 0, #0f2630 0, transparent 35%);
+  background-attachment:fixed;}
+a{color:var(--accent);text-decoration:none}
+button{font-family:var(--body);cursor:pointer}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:6px}
+::-webkit-scrollbar-track{background:transparent}
 
+/* ---- shell ---- */
+#app{display:none;min-height:100vh;grid-template-columns:232px 1fr}
+.sidebar{background:rgba(12,15,20,.7);backdrop-filter:blur(8px);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 18px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.brand .logo{width:34px;height:34px;border-radius:9px;border:1px solid var(--accent-dim);background:var(--accent-bg);
+  display:grid;place-items:center;color:var(--accent);font-family:var(--disp);font-weight:700;font-size:18px;
+  box-shadow:0 0 18px -6px var(--accent)}
+.brand h1{font-family:var(--disp);font-size:16px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+.brand small{display:block;font-family:var(--mono);font-size:10px;color:var(--txt-3);letter-spacing:2px}
+.nav{display:flex;flex-direction:column;gap:3px;flex:1}
+.nav button{display:flex;align-items:center;gap:11px;width:100%;padding:10px 12px;border:0;border-radius:var(--r-sm);
+  background:transparent;color:var(--txt-2);font-size:14px;font-weight:500;text-align:left;letter-spacing:.2px;transition:.13s}
+.nav button .ic{width:18px;text-align:center;font-size:16px}
+.nav button:hover{background:var(--panel);color:var(--txt)}
+.nav button.active{background:var(--accent-bg);color:var(--accent);box-shadow:inset 2px 0 0 var(--accent)}
+.nav .badge{margin-left:auto;font-family:var(--mono);font-size:10px;background:var(--danger-bg);color:var(--danger);
+  padding:1px 7px;border-radius:20px}
+.userbox{border-top:1px solid var(--line);padding-top:12px;display:flex;align-items:center;gap:10px}
+.userbox img{width:30px;height:30px;border-radius:50%;border:1px solid var(--line-2)}
+.userbox .meta{flex:1;min-width:0}
+.userbox .meta b{font-size:12px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.userbox .meta span{font-size:10px;color:var(--txt-3)}
+.userbox .out{background:transparent;border:1px solid var(--line);color:var(--txt-2);border-radius:6px;padding:4px 7px;font-size:11px}
+.userbox .out:hover{border-color:var(--danger);color:var(--danger)}
+
+.main{padding:26px 30px 60px;max-width:1100px}
+.page{display:none;animation:fade .25s ease}
+.page.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.phead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.phead h2{font-family:var(--disp);font-size:25px;font-weight:600;letter-spacing:.4px}
+.phead .sub{font-family:var(--mono);font-size:11px;color:var(--txt-3);letter-spacing:1.5px;text-transform:uppercase}
+
+/* ---- cards / panels ---- */
+.grid{display:grid;gap:14px}
+.stats{grid-template-columns:repeat(auto-fit,minmax(165px,1fr));margin-bottom:18px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px 17px;position:relative;overflow:hidden}
+.stat::after{content:'';position:absolute;inset:0 0 auto 0;height:2px;background:var(--accent);opacity:.5}
+.stat.amber::after{background:var(--amber)} .stat.ok::after{background:var(--ok)} .stat.danger::after{background:var(--danger)}
+.stat .lbl{font-size:12px;color:var(--txt-2);display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.stat .val{font-family:var(--disp);font-size:30px;font-weight:600;line-height:1}
+.stat .note{font-family:var(--mono);font-size:11px;color:var(--txt-3);margin-top:5px}
+.panels{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
+.panel h3{font-family:var(--disp);font-size:14px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--txt-2);
+  display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.panel h3 .ic{color:var(--accent)}
+.panel h3 .more{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--txt-3);cursor:pointer;letter-spacing:1px}
+.panel h3 .more:hover{color:var(--accent)}
+.empty{color:var(--txt-3);font-size:13px;padding:8px 0;font-style:italic}
+
+/* rows */
+.row{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .t{flex:1;min-width:0}
+.row .t b{font-weight:500;font-size:14px}
+.row .t small{display:block;color:var(--txt-3);font-size:11px;font-family:var(--mono)}
+.time{font-family:var(--mono);font-size:12px;color:var(--accent);min-width:62px}
+.check{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line-2);background:transparent;flex-shrink:0;
+  display:grid;place-items:center;color:transparent;transition:.12s;font-size:12px}
+.check:hover{border-color:var(--accent)}
+.check.done{background:var(--accent);border-color:var(--accent);color:#04222a}
+.row.done .t b{text-decoration:line-through;color:var(--txt-3)}
+.pill{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;letter-spacing:.5px;white-space:nowrap}
+.pill.hi{background:var(--danger-bg);color:var(--danger)} .pill.med{background:var(--amber-bg);color:var(--amber)}
+.pill.lo{background:var(--accent-bg);color:var(--accent)} .pill.due{background:var(--panel-2);color:var(--txt-2)}
+.pill.over{background:var(--danger-bg);color:var(--danger)}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{font-size:12px;background:var(--panel-2);border:1px solid var(--line);padding:6px 11px;border-radius:20px;color:var(--txt)}
+.launcher{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.launcher a{font-family:var(--mono);font-size:12px;background:var(--bg-2);border:1px solid var(--line);padding:6px 11px;border-radius:7px;letter-spacing:.3px}
+.launcher a:hover{border-color:var(--accent-dim);background:var(--accent-bg)}
+.iconbtn{background:transparent;border:1px solid var(--line);color:var(--txt-2);border-radius:6px;width:30px;height:30px;display:grid;place-items:center;font-size:14px}
+.iconbtn:hover{border-color:var(--line-2);color:var(--txt)}
+.iconbtn.del:hover{border-color:var(--danger);color:var(--danger)}
+
+/* buttons / inputs */
+.btn{background:var(--accent);color:#04222a;border:0;border-radius:7px;padding:9px 15px;font-weight:600;font-size:13px;letter-spacing:.3px;display:inline-flex;align-items:center;gap:7px}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+.btn.ghost:hover{border-color:var(--accent-dim);color:var(--accent)}
+.btn.sm{padding:6px 11px;font-size:12px}
+input,select,textarea{font-family:var(--body);font-size:14px;background:var(--bg-2);border:1px solid var(--line);
+  color:var(--txt);border-radius:7px;padding:9px 11px;width:100%}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--accent-dim);box-shadow:0 0 0 3px var(--accent-bg)}
+label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-2);text-transform:uppercase;display:block;margin-bottom:5px}
+.field{margin-bottom:13px}
+.frow{display:flex;gap:11px} .frow .field{flex:1}
+
+/* table-ish list page */
+.listcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.listcard .row{padding:12px 18px}
+.section-title{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt-3);margin:22px 0 9px}
+
+/* calendar */
+.calbar{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.calbar .range{font-family:var(--disp);font-size:16px;font-weight:500}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:9px}
+.daycol{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px;min-height:150px}
+.daycol.today{border-color:var(--accent-dim);box-shadow:inset 0 2px 0 var(--accent)}
+.daycol .dh{font-family:var(--mono);font-size:11px;color:var(--txt-2);margin-bottom:8px;text-align:center;letter-spacing:.5px}
+.daycol .dh b{display:block;font-family:var(--disp);font-size:18px;color:var(--txt)}
+.ev{background:var(--accent-bg);border-left:2px solid var(--accent);border-radius:5px;padding:5px 7px;margin-bottom:6px;cursor:pointer;font-size:12px}
+.ev:hover{background:var(--accent-dim)}
+.ev .et{font-family:var(--mono);font-size:10px;color:var(--accent)}
+.ev .en{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* gym */
+.gym-sess{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px 18px;margin-bottom:12px}
+.gym-sess .gh{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.gym-sess .gh .gtype{font-family:var(--disp);font-weight:600;letter-spacing:.5px}
+.gym-sess .gh .gdate{font-family:var(--mono);font-size:12px;color:var(--txt-3)}
+.exrow{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
+.exrow .exn{flex:1;font-weight:500}
+.exrow .sets{font-family:var(--mono);font-size:12px;color:var(--txt-2)}
+.exrow .pr{font-family:var(--mono);font-size:10px;background:var(--amber-bg);color:var(--amber);padding:1px 7px;border-radius:20px}
+
+/* modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(4,7,11,.72);backdrop-filter:blur(3px);z-index:50;
+  align-items:flex-start;justify-content:center;padding:60px 16px;overflow:auto}
+.modal-bg.open{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;width:100%;max-width:480px;padding:22px 24px;
+  box-shadow:0 30px 80px -20px #000}
+.modal h3{font-family:var(--disp);font-size:19px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:9px}
+.modal h3 .ic{color:var(--accent)}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+.modal-actions .left{margin-right:auto}
+
+/* login */
+#login{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+.loginbox{text-align:center;max-width:380px}
+.loginbox .logo{width:62px;height:62px;border-radius:16px;border:1px solid var(--accent-dim);background:var(--accent-bg);
+  display:grid;place-items:center;color:var(--accent);font-family:var(--disp);font-weight:700;font-size:32px;margin:0 auto 20px;
+  box-shadow:0 0 40px -8px var(--accent)}
+.loginbox h1{font-family:var(--disp);font-size:30px;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+.loginbox p{color:var(--txt-2);margin:8px 0 26px;font-size:14px}
+.gbtn{display:inline-flex;align-items:center;gap:11px;background:#fff;color:#1f2937;border:0;border-radius:9px;padding:12px 22px;font-weight:600;font-size:15px}
+.gbtn:hover{filter:brightness(.96)}
+.gbtn svg{width:19px;height:19px}
+#login .warn{margin-top:24px;font-family:var(--mono);font-size:11px;color:var(--amber);background:var(--amber-bg);
+  border:1px solid #4a3a12;border-radius:8px;padding:10px 13px;line-height:1.6;display:none}
+
+#loading{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);z-index:100}
+#loading .spin{width:42px;height:42px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line-2);
+  color:var(--txt);padding:11px 18px;border-radius:9px;font-size:13px;z-index:200;opacity:0;transition:.25s;pointer-events:none}
+.toast.show{opacity:1;bottom:30px}
+@media(max-width:760px){#app{grid-template-columns:1fr}.sidebar{position:static;height:auto;flex-direction:row;flex-wrap:wrap}.nav{flex-direction:row;flex-wrap:wrap}.nav button{width:auto}.week{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spin"></div></div>
+
+<!-- =================== LOGIN =================== -->
+<div id="login" style="display:none">
+  <div class="loginbox">
+    <div class="logo">C</div>
+    <h1>Command Center</h1>
+    <p>Your personal dashboard. Sign in with Google to sync across devices.</p>
+    <button class="gbtn" id="loginBtn">
+      <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Sign in with Google
+    </button>
+    <div class="warn" id="loginWarn"></div>
+  </div>
+</div>
+
+<!-- =================== APP =================== -->
+<div id="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">C</div>
+      <div><h1>Command</h1><small>CENTER v1</small></div>
+    </div>
+    <nav class="nav" id="nav">
+      <button data-page="home" class="active"><span class="ic">&#9632;</span>Home</button>
+      <button data-page="todo"><span class="ic">&#10003;</span>To-Do<span class="badge" id="navTodo" style="display:none"></span></button>
+      <button data-page="calendar"><span class="ic">&#9783;</span>Calendar</button>
+      <button data-page="gym"><span class="ic">&#9211;</span>Gym Log</button>
+      <button data-page="want"><span class="ic">&#9788;</span>Want To Do</button>
+      <button data-page="projects"><span class="ic">&#9638;</span>Projects</button>
+    </nav>
+    <div class="userbox" id="userbox"></div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ---------- HOME ---------- -->
+    <section class="page active" id="page-home">
+      <div class="phead"><div><h2 id="greeting">Home</h2><div class="sub" id="todayStr"></div></div></div>
+      <div class="grid stats" id="homeStats"></div>
+      <div class="grid panels">
+        <div class="panel">
+          <h3><span class="ic">&#9783;</span>Today &amp; tomorrow<span class="more" data-go="calendar">OPEN &#8250;</span></h3>
+          <div id="homeAgenda"></div>
+        </div>
+        <div class="panel">
+          <h3><span class="ic">&#10003;</span>Due soon<span class="more" data-go="todo">OPEN &#8250;</span></h3>
+          <div id="homeTodos"></div>
+        </div>
+        <div class="panel">
+          <h3><span class="ic">&#9638;</span>Active projects<span class="more" data-go="projects">OPEN &#8250;</span></h3>
+          <div id="homeProjects"></div>
+        </div>
+        <div class="panel">
+          <h3><span class="ic">&#9788;</span>Want to do<span class="more" data-go="want">OPEN &#8250;</span></h3>
+          <div id="homeWants"></div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:14px">
+        <h3><span class="ic">&#9889;</span>Launcher</h3>
+        <div class="launcher" id="launcher"></div>
+      </div>
+    </section>
+
+    <!-- ---------- TODO ---------- -->
+    <section class="page" id="page-todo">
+      <div class="phead">
+        <div><h2>To-Do</h2><div class="sub">Tasks &amp; priorities</div></div>
+        <button class="btn" id="addTodoBtn">&#43; New task</button>
+      </div>
+      <div class="section-title">Open</div>
+      <div class="listcard" id="todoOpen"></div>
+      <div class="section-title">Completed</div>
+      <div class="listcard" id="todoDone"></div>
+    </section>
+
+    <!-- ---------- CALENDAR ---------- -->
+    <section class="page" id="page-calendar">
+      <div class="phead">
+        <div><h2>Calendar</h2><div class="sub">Google Calendar &middot; two-way</div></div>
+        <div style="display:flex;gap:9px">
+          <button class="btn ghost sm" id="calConnect">Connect calendar</button>
+          <button class="btn" id="addEventBtn" style="display:none">&#43; New event</button>
+        </div>
+      </div>
+      <div id="calNotConnected" class="panel" style="text-align:center;padding:34px">
+        <p style="color:var(--txt-2);margin-bottom:14px">Connect your Google Calendar to view, create, and edit events here.</p>
+        <button class="btn" id="calConnect2">Connect Google Calendar</button>
+      </div>
+      <div id="calView" style="display:none">
+        <div class="calbar">
+          <button class="iconbtn" id="calPrev">&#8249;</button>
+          <button class="iconbtn" id="calNext">&#8250;</button>
+          <button class="btn ghost sm" id="calToday">Today</button>
+          <span class="range" id="calRange"></span>
+        </div>
+        <div class="week" id="calWeek"></div>
+      </div>
+    </section>
+
+    <!-- ---------- GYM ---------- -->
+    <section class="page" id="page-gym">
+      <div class="phead">
+        <div><h2>Gym Log</h2><div class="sub">Sessions, sets &amp; PRs</div></div>
+        <button class="btn" id="addGymBtn">&#43; Log session</button>
+      </div>
+      <div class="grid stats" id="gymStats"></div>
+      <div id="gymList"></div>
+    </section>
+
+    <!-- ---------- WANT ---------- -->
+    <section class="page" id="page-want">
+      <div class="phead">
+        <div><h2>Want To Do</h2><div class="sub">Someday / maybe</div></div>
+        <button class="btn" id="addWantBtn">&#43; Add idea</button>
+      </div>
+      <div class="listcard" id="wantList"></div>
+    </section>
+
+    <!-- ---------- PROJECTS ---------- -->
+    <section class="page" id="page-projects">
+      <div class="phead">
+        <div><h2>Projects</h2><div class="sub">Keep it visible</div></div>
+        <button class="btn" id="addProjBtn">&#43; New project</button>
+      </div>
+      <div class="grid panels" id="projList"></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- modal host -->
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+/* ============================================================
+   CONFIG  ->  FILL THESE IN  (all values below are PUBLIC/safe to commit)
+   ============================================================ */
+
+const firebaseConfig = {
+  apiKey: "PASTE_FIREBASE_API_KEY",
+  authDomain: "PASTE.firebaseapp.com",
+  projectId: "PASTE_PROJECT_ID",
+  storageBucket: "PASTE.appspot.com",
+  messagingSenderId: "PASTE_SENDER_ID",
+  appId: "PASTE_APP_ID"
+};
+
+// OAuth Web client ID from Google Cloud Console (Calendar). Looks like 12345-abc.apps.googleusercontent.com
+const GOOGLE_CLIENT_ID = "PASTE_GOOGLE_OAUTH_CLIENT_ID";
+
+// Edit these freely - they are your quick links and countdowns
+const LAUNCHER_LINKS = [
+  { name: "Home Assistant", url: "http://homeassistant.local:8123" },
+  { name: "Bin Tracker",    url: "https://grayman500.github.io/Bin-Tracker" },
+  { name: "Game Tracker",   url: "https://grayman500.github.io/" },
+  { name: "GitHub",         url: "https://github.com/grayman500" },
+  { name: "P1S",            url: "https://bambulab.com" }
+];
+
+const COUNTDOWNS = [
+  { name: "Phoenix trip", date: "2026-08-15" }   // edit / add more {name,date}
+];
+
+const WEATHER = { name: "Huntsville", lat: 34.7304, lon: -86.5861 }; // open-meteo, no key needed
+
+/* ============================================================
+   APP CODE  (you should not need to edit below here)
+   ============================================================ */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, orderBy }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const state = { user:null, todos:[], wants:[], gym:[], projects:[], events:[],
+                calToken:null, weekStart:startOfWeek(new Date()) };
+let unsub = [];
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const el = (t,c,h) => { const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
+const esc = s => (s||"").replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2200); }
+function startOfWeek(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()-x.getDay()); return x; }
+function fmtDate(d){ return new Date(d).toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
+function daysUntil(d){ const a=new Date(); a.setHours(0,0,0,0); const b=new Date(d+"T00:00:00"); return Math.round((b-a)/86400000); }
+function dueClass(t){ if(!t.due) return null; const d=daysUntil(t.due); if(d<0) return "over"; if(d===0) return "due"; return null; }
+function dueLabel(t){ if(!t.due) return ""; const d=daysUntil(t.due); if(d<0) return "overdue"; if(d===0) return "today"; if(d===1) return "tomorrow"; if(d<7) return new Date(t.due+"T00:00:00").toLocaleDateString(undefined,{weekday:"short"}); return fmtDate(t.due); }
+
+/* ---------- modal ---------- */
+function openModal(html){ $("#modal").innerHTML=html; $("#modalBg").classList.add("open"); }
+function closeModal(){ $("#modalBg").classList.remove("open"); }
+$("#modalBg").addEventListener("click", e=>{ if(e.target.id==="modalBg") closeModal(); });
+
+/* ---------- auth ---------- */
+$("#loginBtn").addEventListener("click", login);
+async function login(){
+  const provider = new GoogleAuthProvider();
+  try { await signInWithPopup(auth, provider); }
+  catch(e){ showLoginWarn(e); }
+}
+function showLoginWarn(e){
+  const w=$("#loginWarn"); w.style.display="block";
+  if(String(e.message||e).includes("api-key") || GOOGLE_CLIENT_ID.startsWith("PASTE"))
+    w.textContent="Looks like the config placeholders aren't filled in yet. Add your Firebase config + OAuth client ID near the top of the file.";
+  else w.textContent="Sign-in failed: "+(e.code||e.message||e)+". Check that this domain is added to Firebase > Authentication > Authorized domains.";
+}
+$("#userbox").addEventListener("click", e=>{ if(e.target.classList.contains("out")) signOut(auth); });
+
+onAuthStateChanged(auth, user=>{
+  $("#loading").style.display="none";
+  if(user){
+    state.user=user;
+    $("#login").style.display="none";
+    $("#app").style.display="grid";
+    renderUser();
+    attachListeners();
+    loadWeather();
+  } else {
+    state.user=null;
+    unsub.forEach(u=>u()); unsub=[];
+    $("#app").style.display="none";
+    $("#login").style.display="flex";
+  }
+});
+
+function renderUser(){
+  const u=state.user;
+  $("#userbox").innerHTML =
+    `<img src="${u.photoURL||""}" alt="" onerror="this.style.display='none'">
+     <div class="meta"><b>${esc(u.displayName||"You")}</b><span>${esc(u.email||"")}</span></div>
+     <button class="out">Out</button>`;
+  $("#greeting").textContent = "Welcome back, "+ (u.displayName? u.displayName.split(" ")[0] : "Commander");
+}
+
+/* ---------- firestore live data ---------- */
+function col(name){ return collection(db, "users", state.user.uid, name); }
+function attachListeners(){
+  unsub.forEach(u=>u()); unsub=[];
+  unsub.push(onSnapshot(col("todos"),    s=>{ state.todos    = snap(s); renderTodos(); renderHome(); }));
+  unsub.push(onSnapshot(col("wants"),    s=>{ state.wants    = snap(s); renderWants(); renderHome(); }));
+  unsub.push(onSnapshot(col("projects"), s=>{ state.projects = snap(s); renderProjects(); renderHome(); }));
+  unsub.push(onSnapshot(col("gym"),      s=>{ state.gym      = snap(s); renderGym(); renderHome(); }));
+}
+function snap(s){ const a=[]; s.forEach(d=>a.push({id:d.id, ...d.data()})); return a; }
+async function save(name, data, id){
+  if(id) return setDoc(doc(db,"users",state.user.uid,name,id), data, {merge:true});
+  return addDoc(col(name), {...data, created:Date.now()});
+}
+async function remove(name, id){ return deleteDoc(doc(db,"users",state.user.uid,name,id)); }
+
+/* ---------- navigation ---------- */
+$("#nav").addEventListener("click", e=>{ const b=e.target.closest("button"); if(b) goto(b.dataset.page); });
+document.body.addEventListener("click", e=>{ const m=e.target.closest("[data-go]"); if(m) goto(m.dataset.go); });
+function goto(page){
+  document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active", b.dataset.page===page));
+  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active", p.id==="page-"+page));
+  if(page==="calendar" && state.calToken) refreshEvents();
+}
+
+/* ============================================================
+   HOME
+   ============================================================ */
+function renderHome(){
+  const now=new Date();
+  $("#todayStr").textContent = now.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"}).toUpperCase();
+
+  const open = state.todos.filter(t=>!t.done);
+  const dueToday = open.filter(t=>t.due && daysUntil(t.due)===0).length;
+  const overdue = open.filter(t=>t.due && daysUntil(t.due)<0).length;
+  const streak = gymStreak();
+  const cd = COUNTDOWNS.map(c=>({...c,d:daysUntil(c.date)})).filter(c=>c.d>=0).sort((a,b)=>a.d-b.d)[0];
+
+  const navBadge=$("#navTodo");
+  if(overdue+dueToday>0){ navBadge.style.display="inline"; navBadge.textContent=overdue+dueToday; } else navBadge.style.display="none";
+
+  $("#homeStats").innerHTML =
+    `<div class="stat" id="wxCard"><div class="lbl">&#9728; ${esc(WEATHER.name)}</div><div class="val">--</div><div class="note">loading</div></div>
+     <div class="stat ${overdue?"danger":"accent"}"><div class="lbl">&#10003; Due today</div><div class="val">${dueToday}</div><div class="note">${overdue} overdue</div></div>
+     <div class="stat ok"><div class="lbl">&#9211; Gym streak</div><div class="val">${streak}</div><div class="note">${streak===1?"day":"days"}</div></div>
+     <div class="stat amber"><div class="lbl">&#9992; ${cd?esc(cd.name):"Countdown"}</div><div class="val">${cd?cd.d:"--"}</div><div class="note">${cd?"days away":"none set"}</div></div>`;
+  if(window.__wx) paintWeather(window.__wx);
+
+  // due soon todos
+  const soon = open.filter(t=>t.due).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,5);
+  const restNoDue = open.filter(t=>!t.due).slice(0,5-soon.length);
+  const homeList = [...soon, ...restNoDue];
+  $("#homeTodos").innerHTML = homeList.length ? homeList.map(t=>{
+    const dc=dueClass(t);
+    return `<div class="row"><div class="check ${t.done?"done":""}" data-toggle="${t.id}">&#10003;</div>
+      <div class="t"><b>${esc(t.title)}</b></div>
+      ${t.due?`<span class="pill ${dc||"due"}">${dueLabel(t)}</span>`:`<span class="pill ${t.priority||'lo'}">${(t.priority||'low')}</span>`}</div>`;
+  }).join("") : `<div class="empty">No open tasks. Nice.</div>`;
+
+  // projects
+  const ap = state.projects.filter(p=>p.status!=="done").slice(0,4);
+  $("#homeProjects").innerHTML = ap.length ? ap.map(p=>
+    `<div class="row"><div class="t"><b>${esc(p.name)}</b><small>${esc(p.note||p.category||"")}</small></div>
+     <span class="pill ${p.status==="active"?"lo":"due"}">${esc(p.status||"idea")}</span></div>`).join("")
+    : `<div class="empty">No active projects yet.</div>`;
+
+  // wants
+  $("#homeWants").innerHTML = state.wants.length ?
+    `<div class="chips">${state.wants.slice(0,8).map(w=>`<span class="chip">${esc(w.title)}</span>`).join("")}</div>`
+    : `<div class="empty">Add a few someday/maybe ideas.</div>`;
+
+  // agenda
+  renderHomeAgenda();
+  // launcher
+  $("#launcher").innerHTML = LAUNCHER_LINKS.map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)} &#8599;</a>`).join("");
+}
+function renderHomeAgenda(){
+  if(!state.calToken){ $("#homeAgenda").innerHTML=`<div class="empty">Connect calendar to see your agenda.</div>`; return; }
+  const today=new Date(); today.setHours(0,0,0,0);
+  const end=new Date(today); end.setDate(end.getDate()+2);
+  const items=state.events.filter(e=>{ const s=evStart(e); return s>=today && s<end; }).sort((a,b)=>evStart(a)-evStart(b)).slice(0,6);
+  $("#homeAgenda").innerHTML = items.length ? items.map(e=>{
+    const s=evStart(e); const allDay=!e.start.dateTime;
+    const t=allDay?"all day":s.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+    const day=s.toDateString()===today.toDateString()?"":fmtDate(s)+" ";
+    return `<div class="row"><span class="time">${day}${t}</span><div class="t"><b>${esc(e.summary||"(busy)")}</b></div></div>`;
+  }).join("") : `<div class="empty">Nothing scheduled.</div>`;
+}
+
+/* document click delegation for checkboxes */
+document.body.addEventListener("click", e=>{
+  const c=e.target.closest("[data-toggle]");
+  if(c){ const t=state.todos.find(x=>x.id===c.dataset.toggle); if(t) save("todos",{done:!t.done},t.id); }
+});
+
+/* ---------- weather (open-meteo, keyless) ---------- */
+async function loadWeather(){
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WEATHER.lat}&longitude=${WEATHER.lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit`);
+    const j=await r.json(); window.__wx=j.current; paintWeather(j.current);
+  }catch(_){}
+}
+const WX={0:"Clear",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Fog",48:"Fog",51:"Drizzle",61:"Rain",63:"Rain",65:"Heavy rain",71:"Snow",80:"Showers",95:"Storm"};
+function paintWeather(c){ const card=$("#wxCard"); if(!card||!c)return;
+  card.querySelector(".val").textContent=Math.round(c.temperature_2m)+"\u00B0F";
+  card.querySelector(".note").textContent=WX[c.weather_code]||"--"; }
+
+/* ============================================================
+   TO-DO
+   ============================================================ */
+$("#addTodoBtn").addEventListener("click", ()=>todoModal());
+function todoModal(t={}){
+  openModal(`<h3><span class="ic">&#10003;</span>${t.id?"Edit task":"New task"}</h3>
+    <div class="field"><label>Title</label><input id="m_title" value="${esc(t.title||"")}" placeholder="What needs doing?"></div>
+    <div class="frow">
+      <div class="field"><label>Priority</label><select id="m_pri">
+        <option value="lo"${t.priority==="lo"?" selected":""}>Low</option>
+        <option value="med"${t.priority==="med"?" selected":""}>Medium</option>
+        <option value="hi"${t.priority==="hi"?" selected":""}>High</option></select></div>
+      <div class="field"><label>Due date</label><input type="date" id="m_due" value="${t.due||""}"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="m_notes" rows="2">${esc(t.notes||"")}</textarea></div>
+    <div class="modal-actions">
+      ${t.id?`<button class="btn ghost left" id="m_del">Delete</button>`:""}
+      <button class="btn ghost" id="m_cancel">Cancel</button>
+      <button class="btn" id="m_save">Save</button></div>`);
+  $("#m_cancel").onclick=closeModal;
+  if(t.id)$("#m_del").onclick=()=>{ remove("todos",t.id); closeModal(); toast("Task deleted"); };
+  $("#m_save").onclick=()=>{
+    const title=$("#m_title").value.trim(); if(!title)return;
+    save("todos",{title, priority:$("#m_pri").value, due:$("#m_due").value||null, notes:$("#m_notes").value.trim(), done:t.done||false}, t.id);
+    closeModal(); toast(t.id?"Task updated":"Task added");
+  };
+}
+function todoRow(t){
+  const dc=dueClass(t);
+  return `<div class="row ${t.done?"done":""}">
+    <div class="check ${t.done?"done":""}" data-toggle="${t.id}">&#10003;</div>
+    <div class="t" data-edit-todo="${t.id}" style="cursor:pointer"><b>${esc(t.title)}</b>${t.notes?`<small>${esc(t.notes)}</small>`:""}</div>
+    ${t.due?`<span class="pill ${dc||"due"}">${dueLabel(t)}</span>`:""}
+    <span class="pill ${t.priority||"lo"}">${({hi:"high",med:"med",lo:"low"})[t.priority||"lo"]}</span>
+    <button class="iconbtn del" data-del-todo="${t.id}">&#10005;</button></div>`;
+}
+function renderTodos(){
+  const open=state.todos.filter(t=>!t.done).sort((a,b)=>{
+    const pr={hi:0,med:1,lo:2}; const da=a.due?daysUntil(a.due):999, dbb=b.due?daysUntil(b.due):999;
+    return da-dbb || (pr[a.priority||"lo"]-pr[b.priority||"lo"]);
+  });
+  const done=state.todos.filter(t=>t.done).sort((a,b)=>(b.created||0)-(a.created||0));
+  $("#todoOpen").innerHTML = open.length? open.map(todoRow).join("") : `<div class="row"><div class="empty">No open tasks.</div></div>`;
+  $("#todoDone").innerHTML = done.length? done.map(todoRow).join("") : `<div class="row"><div class="empty">Nothing completed yet.</div></div>`;
+}
+document.body.addEventListener("click", e=>{
+  const ed=e.target.closest("[data-edit-todo]"); if(ed){ const t=state.todos.find(x=>x.id===ed.dataset.editTodo); if(t)todoModal(t); }
+  const dl=e.target.closest("[data-del-todo]"); if(dl){ remove("todos",dl.dataset.delTodo); toast("Task deleted"); }
+});
+
+/* ============================================================
+   WANT TO DO
+   ============================================================ */
+$("#addWantBtn").addEventListener("click", ()=>wantModal());
+function wantModal(w={}){
+  openModal(`<h3><span class="ic">&#9788;</span>${w.id?"Edit idea":"Add idea"}</h3>
+    <div class="field"><label>Idea</label><input id="w_title" value="${esc(w.title||"")}" placeholder="Something you'd like to do someday"></div>
+    <div class="field"><label>Tag</label><input id="w_tag" value="${esc(w.tag||"")}" placeholder="e.g. 3D print, game dev, trip"></div>
+    <div class="field"><label>Notes</label><textarea id="w_notes" rows="2">${esc(w.notes||"")}</textarea></div>
+    <div class="modal-actions">
+      ${w.id?`<button class="btn ghost left" id="w_del">Delete</button>`:""}
+      <button class="btn ghost" id="w_cancel">Cancel</button>
+      <button class="btn" id="w_save">Save</button></div>`);
+  $("#w_cancel").onclick=closeModal;
+  if(w.id)$("#w_del").onclick=()=>{ remove("wants",w.id); closeModal(); };
+  $("#w_save").onclick=()=>{ const title=$("#w_title").value.trim(); if(!title)return;
+    save("wants",{title,tag:$("#w_tag").value.trim(),notes:$("#w_notes").value.trim()},w.id); closeModal(); toast("Saved"); };
+}
+function renderWants(){
+  $("#wantList").innerHTML = state.wants.length ? state.wants.map(w=>
+    `<div class="row"><div class="t" data-edit-want="${w.id}" style="cursor:pointer"><b>${esc(w.title)}</b>${w.tag?`<small>${esc(w.tag)}</small>`:""}</div>
+      <button class="btn ghost sm" data-promote="${w.id}">&#8594; To-Do</button>
+      <button class="iconbtn del" data-del-want="${w.id}">&#10005;</button></div>`).join("")
+    : `<div class="row"><div class="empty">No ideas yet. What's on the someday list?</div></div>`;
+}
+document.body.addEventListener("click", e=>{
+  const ed=e.target.closest("[data-edit-want]"); if(ed){ const w=state.wants.find(x=>x.id===ed.dataset.editWant); if(w)wantModal(w); }
+  const dl=e.target.closest("[data-del-want]"); if(dl) remove("wants",dl.dataset.delWant);
+  const pr=e.target.closest("[data-promote]"); if(pr){ const w=state.wants.find(x=>x.id===pr.dataset.promote);
+    if(w){ save("todos",{title:w.title,priority:"lo",due:null,notes:w.notes||"",done:false}); remove("wants",w.id); toast("Promoted to To-Do"); goto("todo"); } }
+});
+
+/* ============================================================
+   PROJECTS
+   ============================================================ */
+$("#addProjBtn").addEventListener("click", ()=>projModal());
+function projModal(p={}){
+  openModal(`<h3><span class="ic">&#9638;</span>${p.id?"Edit project":"New project"}</h3>
+    <div class="field"><label>Name</label><input id="p_name" value="${esc(p.name||"")}"></div>
+    <div class="frow">
+      <div class="field"><label>Status</label><select id="p_status">
+        <option value="active"${p.status==="active"?" selected":""}>Active</option>
+        <option value="idea"${p.status==="idea"?" selected":""}>Idea</option>
+        <option value="paused"${p.status==="paused"?" selected":""}>Paused</option>
+        <option value="done"${p.status==="done"?" selected":""}>Done</option></select></div>
+      <div class="field"><label>Category</label><input id="p_cat" value="${esc(p.category||"")}" placeholder="3D print, dev, lab..."></div>
+    </div>
+    <div class="field"><label>Current status / next step</label><textarea id="p_note" rows="2">${esc(p.note||"")}</textarea></div>
+    <div class="field"><label>Link (optional)</label><input id="p_link" value="${esc(p.link||"")}" placeholder="https://..."></div>
+    <div class="modal-actions">
+      ${p.id?`<button class="btn ghost left" id="p_del">Delete</button>`:""}
+      <button class="btn ghost" id="p_cancel">Cancel</button>
+      <button class="btn" id="p_save">Save</button></div>`);
+  $("#p_cancel").onclick=closeModal;
+  if(p.id)$("#p_del").onclick=()=>{ remove("projects",p.id); closeModal(); };
+  $("#p_save").onclick=()=>{ const name=$("#p_name").value.trim(); if(!name)return;
+    save("projects",{name,status:$("#p_status").value,category:$("#p_cat").value.trim(),note:$("#p_note").value.trim(),link:$("#p_link").value.trim()},p.id);
+    closeModal(); toast("Saved"); };
+}
+function renderProjects(){
+  const order={active:0,idea:1,paused:2,done:3};
+  const ps=[...state.projects].sort((a,b)=>(order[a.status]??1)-(order[b.status]??1));
+  $("#projList").innerHTML = ps.length ? ps.map(p=>
+    `<div class="panel">
+      <h3 style="text-transform:none;font-size:15px;color:var(--txt)">${esc(p.name)}
+        <span class="more" data-edit-proj="${p.id}">EDIT</span></h3>
+      <div style="display:flex;gap:8px;margin-bottom:9px">
+        <span class="pill ${p.status==="active"?"lo":p.status==="done"?"due":"med"}">${esc(p.status||"idea")}</span>
+        ${p.category?`<span class="pill due">${esc(p.category)}</span>`:""}</div>
+      <div style="font-size:13px;color:var(--txt-2)">${esc(p.note||"")}</div>
+      ${p.link?`<a href="${esc(p.link)}" target="_blank" rel="noopener" style="font-size:12px;font-family:var(--mono)">Open link &#8599;</a>`:""}
+    </div>`).join("")
+    : `<div class="panel"><div class="empty">No projects yet. Add the dashboard itself to start.</div></div>`;
+}
+document.body.addEventListener("click", e=>{
+  const ed=e.target.closest("[data-edit-proj]"); if(ed){ const p=state.projects.find(x=>x.id===ed.dataset.editProj); if(p)projModal(p); }
+});
+
+/* ============================================================
+   GYM LOG
+   ============================================================ */
+$("#addGymBtn").addEventListener("click", ()=>gymModal());
+function gymModal(g={}){
+  const ex = g.exercises ? JSON.parse(JSON.stringify(g.exercises)) : [{name:"",sets:[{reps:"",weight:""}]}];
+  openModal(`<h3><span class="ic">&#9211;</span>${g.id?"Edit session":"Log session"}</h3>
+    <div class="frow">
+      <div class="field"><label>Date</label><input type="date" id="g_date" value="${g.date||new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>Type</label><input id="g_type" value="${esc(g.type||"")}" placeholder="Push / Pull / Legs / Run"></div>
+    </div>
+    <label>Exercises</label><div id="g_ex"></div>
+    <button class="btn ghost sm" id="g_addex" style="margin-top:8px">&#43; Add exercise</button>
+    <div class="field" style="margin-top:13px"><label>Notes</label><textarea id="g_notes" rows="2">${esc(g.notes||"")}</textarea></div>
+    <div class="modal-actions">
+      ${g.id?`<button class="btn ghost left" id="g_del">Delete</button>`:""}
+      <button class="btn ghost" id="g_cancel">Cancel</button>
+      <button class="btn" id="g_save">Save</button></div>`);
+  const host=$("#g_ex");
+  function draw(){
+    host.innerHTML = ex.map((x,i)=>`
+      <div style="background:var(--bg-2);border:1px solid var(--line);border-radius:7px;padding:10px;margin-bottom:8px">
+        <div style="display:flex;gap:8px;margin-bottom:7px">
+          <input data-exn="${i}" value="${esc(x.name)}" placeholder="Exercise" style="flex:1">
+          <button class="iconbtn del" data-exdel="${i}">&#10005;</button></div>
+        <div data-sets="${i}">${x.sets.map((s,j)=>`
+          <div style="display:flex;gap:7px;margin-bottom:5px;align-items:center">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--txt-3);width:22px">${j+1}</span>
+            <input data-rep="${i}-${j}" value="${esc(String(s.reps))}" placeholder="reps" style="flex:1">
+            <input data-wt="${i}-${j}" value="${esc(String(s.weight))}" placeholder="lb" style="flex:1">
+            <button class="iconbtn del" data-setdel="${i}-${j}">&#8722;</button></div>`).join("")}
+          <button class="btn ghost sm" data-setadd="${i}">&#43; set</button></div>
+      </div>`).join("");
+  }
+  draw();
+  function sync(){
+    ex.forEach((x,i)=>{ const n=host.querySelector(`[data-exn="${i}"]`); if(n)x.name=n.value;
+      x.sets.forEach((s,j)=>{ const r=host.querySelector(`[data-rep="${i}-${j}"]`), w=host.querySelector(`[data-wt="${i}-${j}"]`);
+        if(r)s.reps=r.value; if(w)s.weight=w.value; }); });
+  }
+  host.addEventListener("click", e=>{
+    const a=e.target.closest("[data-setadd]"); if(a){ sync(); ex[+a.dataset.setadd].sets.push({reps:"",weight:""}); draw(); return; }
+    const sd=e.target.closest("[data-setdel]"); if(sd){ sync(); const [i,j]=sd.dataset.setdel.split("-").map(Number); ex[i].sets.splice(j,1); if(!ex[i].sets.length)ex[i].sets.push({reps:"",weight:""}); draw(); return; }
+    const xd=e.target.closest("[data-exdel]"); if(xd){ sync(); ex.splice(+xd.dataset.exdel,1); if(!ex.length)ex.push({name:"",sets:[{reps:"",weight:""}]}); draw(); return; }
+  });
+  $("#g_addex").onclick=()=>{ sync(); ex.push({name:"",sets:[{reps:"",weight:""}]}); draw(); };
+  $("#g_cancel").onclick=closeModal;
+  if(g.id)$("#g_del").onclick=()=>{ remove("gym",g.id); closeModal(); };
+  $("#g_save").onclick=()=>{ sync();
+    const clean=ex.filter(x=>x.name.trim()).map(x=>({name:x.name.trim(),
+      sets:x.sets.filter(s=>s.reps||s.weight).map(s=>({reps:+s.reps||0,weight:+s.weight||0}))}));
+    save("gym",{date:$("#g_date").value,type:$("#g_type").value.trim()||"Workout",exercises:clean,notes:$("#g_notes").value.trim()},g.id);
+    closeModal(); toast("Session logged"); };
+}
+function gymStreak(){
+  const days=[...new Set(state.gym.map(g=>g.date))].sort().reverse();
+  if(!days.length)return 0;
+  let streak=0; const today=new Date(); today.setHours(0,0,0,0);
+  let cursor=new Date(today);
+  const last=new Date(days[0]+"T00:00:00");
+  if(Math.round((today-last)/86400000)>1) return 0;
+  cursor=new Date(last);
+  for(const d of days){ const dd=new Date(d+"T00:00:00");
+    if(Math.round((cursor-dd)/86400000)<=1){ streak++; cursor=new Date(dd); cursor.setDate(cursor.getDate()-1); }
+    else break; }
+  return streak;
+}
+function gymPRs(){
+  const pr={};
+  state.gym.forEach(g=>g.exercises?.forEach(x=>x.sets?.forEach(s=>{ if(s.weight>(pr[x.name]||0))pr[x.name]=s.weight; })));
+  return pr;
+}
+function renderGym(){
+  const streak=gymStreak();
+  const week=state.gym.filter(g=>daysUntil(g.date)>=-7).length;
+  const prs=gymPRs(); const topPr=Object.entries(prs).sort((a,b)=>b[1]-a[1])[0];
+  $("#gymStats").innerHTML =
+    `<div class="stat ok"><div class="lbl">&#9211; Current streak</div><div class="val">${streak}</div><div class="note">days</div></div>
+     <div class="stat accent"><div class="lbl">&#9636; This week</div><div class="val">${week}</div><div class="note">sessions</div></div>
+     <div class="stat"><div class="lbl">&#9776; Total logged</div><div class="val">${state.gym.length}</div><div class="note">sessions</div></div>
+     <div class="stat amber"><div class="lbl">&#9733; Top PR</div><div class="val" style="font-size:18px">${topPr?topPr[1]+" lb":"--"}</div><div class="note">${topPr?esc(topPr[0]):"log to track"}</div></div>`;
+  const sorted=[...state.gym].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  $("#gymList").innerHTML = sorted.length ? sorted.map(g=>`
+    <div class="gym-sess">
+      <div class="gh"><span class="gtype">${esc(g.type)}</span><span class="gdate">${esc(g.date)}</span>
+        <button class="iconbtn" data-edit-gym="${g.id}" style="margin-left:auto">&#9998;</button></div>
+      ${(g.exercises||[]).map(x=>{
+        const max=Math.max(0,...(x.sets||[]).map(s=>s.weight));
+        const isPr=max>0 && max>=(prs[x.name]||0);
+        return `<div class="exrow"><span class="exn">${esc(x.name)}</span>
+          <span class="sets">${(x.sets||[]).map(s=>`${s.reps}\u00D7${s.weight}`).join("  \u00B7  ")}</span>
+          ${isPr?`<span class="pr">PR ${max}</span>`:""}</div>`; }).join("")}
+      ${g.notes?`<div style="font-size:12px;color:var(--txt-3);margin-top:8px;font-style:italic">${esc(g.notes)}</div>`:""}
+    </div>`).join("")
+    : `<div class="panel"><div class="empty">No sessions logged. Hit "Log session" after your next workout.</div></div>`;
+}
+document.body.addEventListener("click", e=>{
+  const ed=e.target.closest("[data-edit-gym]"); if(ed){ const g=state.gym.find(x=>x.id===ed.dataset.editGym); if(g)gymModal(g); }
+});
+
+/* ============================================================
+   CALENDAR (Google, two-way via GIS token + REST)
+   ============================================================ */
+let tokenClient=null;
+function initToken(cb){
+  if(!window.google||!google.accounts){ toast("Google library still loading - try again in a second."); return; }
+  if(!tokenClient){
+    tokenClient=google.accounts.oauth2.initTokenClient({
+      client_id:GOOGLE_CLIENT_ID, scope:"https://www.googleapis.com/auth/calendar.events",
+      callback:(resp)=>{ if(resp.access_token){ state.calToken=resp.access_token;
+        $("#calNotConnected").style.display="none"; $("#calView").style.display="block"; $("#addEventBtn").style.display="inline-flex";
+        refreshEvents(); } if(cb)cb(); }});
+  }
+  tokenClient.requestAccessToken({prompt: state.calToken?"":"consent"});
+}
+$("#calConnect").addEventListener("click", ()=>initToken());
+$("#calConnect2").addEventListener("click", ()=>initToken());
+function evStart(e){ return new Date(e.start.dateTime||e.start.date+"T00:00:00"); }
+async function calFetch(url,opts={}){
+  const r=await fetch("https://www.googleapis.com/calendar/v3"+url,{...opts,
+    headers:{Authorization:"Bearer "+state.calToken,"Content-Type":"application/json",...(opts.headers||{})}});
+  if(r.status===401){ state.calToken=null; toast("Calendar session expired - reconnect."); $("#calView").style.display="none"; $("#calNotConnected").style.display="block"; throw new Error("401"); }
+  return r.status===204?{}:r.json();
+}
+async function refreshEvents(){
+  if(!state.calToken)return;
+  const start=new Date(state.weekStart); const end=new Date(start); end.setDate(end.getDate()+7);
+  try{
+    const j=await calFetch(`/calendars/primary/events?timeMin=${start.toISOString()}&timeMax=${end.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=100`);
+    state.events=j.items||[]; renderWeek(); renderHomeAgenda();
+  }catch(_){}
+}
+$("#calPrev").addEventListener("click", ()=>{ state.weekStart.setDate(state.weekStart.getDate()-7); refreshEvents(); });
+$("#calNext").addEventListener("click", ()=>{ state.weekStart.setDate(state.weekStart.getDate()+7); refreshEvents(); });
+$("#calToday").addEventListener("click", ()=>{ state.weekStart=startOfWeek(new Date()); refreshEvents(); });
+$("#addEventBtn").addEventListener("click", ()=>eventModal());
+function renderWeek(){
+  const ws=state.weekStart; const end=new Date(ws); end.setDate(end.getDate()+6);
+  $("#calRange").textContent = fmtDate(ws)+" \u2013 "+fmtDate(end)+", "+end.getFullYear();
+  const today=new Date().toDateString();
+  let html="";
+  for(let i=0;i<7;i++){ const d=new Date(ws); d.setDate(d.getDate()+i);
+    const evs=state.events.filter(e=>evStart(e).toDateString()===d.toDateString()).sort((a,b)=>evStart(a)-evStart(b));
+    html+=`<div class="daycol ${d.toDateString()===today?"today":""}">
+      <div class="dh">${d.toLocaleDateString(undefined,{weekday:"short"})}<b>${d.getDate()}</b></div>
+      ${evs.map(e=>{ const allDay=!e.start.dateTime;
+        const t=allDay?"all day":evStart(e).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+        return `<div class="ev" data-ev="${e.id}"><div class="et">${t}</div><div class="en">${esc(e.summary||"(busy)")}</div></div>`; }).join("")}
+    </div>`;
+  }
+  $("#calWeek").innerHTML=html;
+}
+document.body.addEventListener("click", e=>{
+  const ev=e.target.closest("[data-ev]"); if(ev){ const found=state.events.find(x=>x.id===ev.dataset.ev); if(found)eventModal(found); }
+});
+function toLocalInput(d){ const x=new Date(d); x.setMinutes(x.getMinutes()-x.getTimezoneOffset()); return x.toISOString().slice(0,16); }
+function eventModal(ev=null){
+  const isEdit=!!ev;
+  const start=ev? (ev.start.dateTime||ev.start.date+"T09:00") : toLocalInput(new Date());
+  const end=ev? (ev.end.dateTime||ev.end.date+"T10:00") : toLocalInput(new Date(Date.now()+3600000));
+  openModal(`<h3><span class="ic">&#9783;</span>${isEdit?"Edit event":"New event"}</h3>
+    <div class="field"><label>Title</label><input id="e_title" value="${esc(ev?ev.summary||"":"")}"></div>
+    <div class="frow">
+      <div class="field"><label>Start</label><input type="datetime-local" id="e_start" value="${toLocalInput(start)}"></div>
+      <div class="field"><label>End</label><input type="datetime-local" id="e_end" value="${toLocalInput(end)}"></div>
+    </div>
+    <div class="field"><label>Location</label><input id="e_loc" value="${esc(ev?ev.location||"":"")}"></div>
+    <div class="field"><label>Notes</label><textarea id="e_notes" rows="2">${esc(ev?ev.description||"":"")}</textarea></div>
+    <div class="modal-actions">
+      ${isEdit?`<button class="btn ghost left" id="e_del">Delete</button>`:""}
+      <button class="btn ghost" id="e_cancel">Cancel</button>
+      <button class="btn" id="e_save">${isEdit?"Update":"Create"}</button></div>`);
+  $("#e_cancel").onclick=closeModal;
+  if(isEdit)$("#e_del").onclick=async()=>{ try{ await calFetch(`/calendars/primary/events/${ev.id}`,{method:"DELETE"}); toast("Event deleted"); }catch(_){ } closeModal(); refreshEvents(); };
+  $("#e_save").onclick=async()=>{
+    const title=$("#e_title").value.trim(); if(!title)return;
+    const body={ summary:title, location:$("#e_loc").value.trim(), description:$("#e_notes").value.trim(),
+      start:{dateTime:new Date($("#e_start").value).toISOString()}, end:{dateTime:new Date($("#e_end").value).toISOString()} };
+    try{
+      if(isEdit) await calFetch(`/calendars/primary/events/${ev.id}`,{method:"PATCH",body:JSON.stringify(body)});
+      else await calFetch(`/calendars/primary/events`,{method:"POST",body:JSON.stringify(body)});
+      toast(isEdit?"Event updated":"Event created");
+    }catch(_){ toast("Could not save event"); }
+    closeModal(); refreshEvents();
+  };
+}
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>
