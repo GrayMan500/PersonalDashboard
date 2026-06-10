@@ -108,6 +108,22 @@ button{font-family:var(--body);cursor:pointer}
 .iconbtn:hover{border-color:var(--line-2);color:var(--txt)}
 .iconbtn.del:hover{border-color:var(--danger);color:var(--danger)}
 
+/* gym month calendar */
+.gcal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.gcal .gdow{text-align:center;font-family:var(--mono);font-size:10px;color:var(--txt-3);letter-spacing:1px;padding-bottom:2px}
+.gday{min-height:58px;border:1px solid var(--line);border-radius:8px;padding:6px 7px;cursor:pointer;display:flex;flex-direction:column;background:var(--panel);transition:.12s}
+.gday:hover{border-color:var(--line-2)}
+.gday .gnum{font-family:var(--mono);font-size:12px;color:var(--txt-2)}
+.gday .glabel{margin-top:auto;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.3px}
+.gday.blank{background:transparent;border-color:transparent;cursor:default}
+.gday.today{box-shadow:inset 0 0 0 1.5px var(--accent)}
+.gday.lift{background:var(--accent-bg);border-color:var(--accent-dim)}
+.gday.lift .gnum,.gday.lift .glabel{color:var(--accent)}
+.gday.cardio{background:var(--ok-bg);border-color:#1d5e3f}
+.gday.cardio .gnum,.gday.cardio .glabel{color:var(--ok)}
+.gday.rest{background:var(--panel-2);border-style:dashed}
+.gday.rest .gnum,.gday.rest .glabel{color:var(--txt-3)}
+
 /* buttons / inputs */
 .seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:3px;margin-bottom:16px;gap:3px}
 .seg-btn{background:transparent;border:0;color:var(--txt-2);padding:7px 16px;border-radius:7px;font-size:13px;font-weight:500}
@@ -232,11 +248,11 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
       <div class="grid stats" id="homeStats"></div>
       <div class="grid panels">
         <div class="panel">
-          <h3><span class="ic">&#9783;</span>Today &amp; tomorrow<span class="more" data-go="calendar">OPEN &#8250;</span></h3>
+          <h3><span class="ic">&#9783;</span>Calendar &middot; upcoming<span class="more" data-go="calendar">OPEN &#8250;</span></h3>
           <div id="homeAgenda"></div>
         </div>
         <div class="panel">
-          <h3><span class="ic">&#10003;</span>Due soon<span class="more" data-go="todo">OPEN &#8250;</span></h3>
+          <h3><span class="ic">&#10003;</span>To-Do &middot; most urgent<span class="more" data-go="todo">OPEN &#8250;</span></h3>
           <div id="homeTodos"></div>
         </div>
         <div class="panel">
@@ -289,11 +305,19 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
     <!-- ---------- GYM ---------- -->
     <section class="page" id="page-gym">
       <div class="phead">
-        <div><h2>Gym Log</h2><div class="sub">Sessions, sets &amp; PRs</div></div>
+        <div><h2>Gym Log</h2><div class="sub">Calendar, workouts &amp; rest days</div></div>
         <button class="btn" id="addGymBtn">&#43; Log session</button>
       </div>
       <div class="grid stats" id="gymStats"></div>
-      <div id="gymList"></div>
+      <div class="calbar">
+        <button class="iconbtn" id="gymPrev">&#8249;</button>
+        <button class="iconbtn" id="gymNext">&#8250;</button>
+        <button class="btn ghost sm" id="gymToday">This month</button>
+        <span class="range" id="gymRange"></span>
+      </div>
+      <div class="gcal" id="gymCal"></div>
+      <div class="section-title">Recent workouts</div>
+      <div id="gymRecent"></div>
     </section>
 
     <!-- ---------- WANT ---------- -->
@@ -402,7 +426,7 @@ const db = getFirestore(app);
 
 const state = { user:null, todos:[], wants:[], gym:[], events:[],
                 bins:[], inventory:[], wishlist:[], recipes:[], invFilter:{search:"",cat:"all",bin:"all"}, pendingBin:null,
-                calToken:null, weekStart:startOfWeek(new Date()) };
+                calToken:null, weekStart:startOfWeek(new Date()), gymMonth:firstOfMonth(new Date()) };
 let unsub = [];
 
 /* ---------- helpers ---------- */
@@ -411,6 +435,8 @@ const el = (t,c,h) => { const e=document.createElement(t); if(c)e.className=c; i
 const esc = s => (s||"").replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2200); }
 function startOfWeek(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()-x.getDay()); return x; }
+function firstOfMonth(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(1); return x; }
+function ymd(d){ const x=new Date(d); return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); }
 function fmtDate(d){ return new Date(d).toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
 function daysUntil(d){ const a=new Date(); a.setHours(0,0,0,0); const b=new Date(d+"T00:00:00"); return Math.round((b-a)/86400000); }
 function dueClass(t){ if(!t.due) return null; const d=daysUntil(t.due); if(d<0) return "over"; if(d===0) return "due"; return null; }
@@ -453,6 +479,7 @@ onAuthStateChanged(auth, user=>{
     attachListeners();
     loadWeather();
     handleHashRoute();
+    autoConnectCalendar();
   } else {
     state.user=null;
     unsub.forEach(u=>u()); unsub=[];
@@ -528,15 +555,19 @@ function renderHome(){
      <div class="stat amber"><div class="lbl">&#9992; ${cd?esc(cd.name):"Countdown"}</div><div class="val">${cd?cd.d:"--"}</div><div class="note">${cd?"days away":"none set"}</div></div>`;
   if(window.__wx) paintWeather(window.__wx);
 
-  // due soon todos
-  const soon = open.filter(t=>t.due).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,5);
-  const restNoDue = open.filter(t=>!t.due).slice(0,5-soon.length);
-  const homeList = [...soon, ...restNoDue];
+  // most urgent todos: due date first (soonest), then priority
+  const prRank={hi:0,med:1,lo:2};
+  const homeList = [...open].sort((a,b)=>{
+    const ad=a.due?daysUntil(a.due):Infinity, bd=b.due?daysUntil(b.due):Infinity;
+    if(ad!==bd) return ad-bd;
+    return (prRank[a.priority||"lo"]-prRank[b.priority||"lo"]);
+  }).slice(0,6);
   $("#homeTodos").innerHTML = homeList.length ? homeList.map(t=>{
     const dc=dueClass(t);
     return `<div class="row"><div class="check ${t.done?"done":""}" data-toggle="${t.id}">&#10003;</div>
       <div class="t"><b>${esc(t.title)}</b></div>
-      ${t.due?`<span class="pill ${dc||"due"}">${dueLabel(t)}</span>`:`<span class="pill ${t.priority||'lo'}">${(t.priority||'low')}</span>`}</div>`;
+      ${t.due?`<span class="pill ${dc||"due"}">${dueLabel(t)}</span>`:""}
+      <span class="pill ${t.priority||'lo'}">${({hi:"high",med:"med",lo:"low"})[t.priority||"lo"]}</span></div>`;
   }).join("") : `<div class="empty">No open tasks. Nice.</div>`;
 
   // wants
@@ -739,14 +770,31 @@ document.body.addEventListener("click", e=>{
    ============================================================ */
 $("#addGymBtn").addEventListener("click", ()=>gymModal());
 function gymModal(g={}){
+  const kind = g.kind || (g.activity?"cardio":"lift");
   const ex = g.exercises ? JSON.parse(JSON.stringify(g.exercises)) : [{name:"",sets:[{reps:"",weight:""}]}];
-  openModal(`<h3><span class="ic">&#9211;</span>${g.id?"Edit session":"Log session"}</h3>
+  openModal(`<h3><span class="ic">&#9211;</span>${g.id?"Edit entry":"Log entry"}</h3>
     <div class="frow">
-      <div class="field"><label>Date</label><input type="date" id="g_date" value="${g.date||new Date().toISOString().slice(0,10)}"></div>
-      <div class="field"><label>Type</label><input id="g_type" value="${esc(g.type||"")}" placeholder="Push / Pull / Legs / Run"></div>
+      <div class="field"><label>Date</label><input type="date" id="g_date" value="${g.date||ymd(new Date())}"></div>
+      <div class="field"><label>Type</label><select id="g_kind">
+        <option value="lift"${kind==="lift"?" selected":""}>Lift</option>
+        <option value="cardio"${kind==="cardio"?" selected":""}>Cardio</option>
+        <option value="rest"${kind==="rest"?" selected":""}>Rest day</option></select></div>
     </div>
-    <label>Exercises</label><div id="g_ex"></div>
-    <button class="btn ghost sm" id="g_addex" style="margin-top:8px">&#43; Add exercise</button>
+    <div id="g_lift">
+      <div class="field"><label>Split / focus</label><input id="g_type" value="${esc(g.type||"")}" placeholder="Push / Pull / Legs"></div>
+      <label>Exercises</label><div id="g_ex"></div>
+      <button class="btn ghost sm" id="g_addex" style="margin-top:8px">&#43; Add exercise</button>
+    </div>
+    <div id="g_cardio">
+      <div class="field"><label>Activity</label><input id="g_activity" value="${esc(g.activity||"")}" placeholder="Run, Bike, Row, Swim"></div>
+      <div class="frow">
+        <div class="field"><label>Distance</label><input id="g_dist" value="${esc(g.distance||"")}" placeholder="3.1 mi"></div>
+        <div class="field"><label>Time</label><input id="g_time" value="${esc(g.duration||"")}" placeholder="28:00"></div>
+      </div>
+      <div class="field"><label>Effort</label><select id="g_effort">
+        ${["Easy","Moderate","Hard","Max"].map(o=>`<option${(g.effort||"Moderate")===o?" selected":""}>${o}</option>`).join("")}</select></div>
+    </div>
+    <div id="g_rest"><div class="empty" style="padding:4px 0">Logged as a rest day. Add a note below if you want.</div></div>
     <div class="field" style="margin-top:13px"><label>Notes</label><textarea id="g_notes" rows="2">${esc(g.notes||"")}</textarea></div>
     <div class="modal-actions">
       ${g.id?`<button class="btn ghost left" id="g_del">Delete</button>`:""}
@@ -780,24 +828,41 @@ function gymModal(g={}){
     const xd=e.target.closest("[data-exdel]"); if(xd){ sync(); ex.splice(+xd.dataset.exdel,1); if(!ex.length)ex.push({name:"",sets:[{reps:"",weight:""}]}); draw(); return; }
   });
   $("#g_addex").onclick=()=>{ sync(); ex.push({name:"",sets:[{reps:"",weight:""}]}); draw(); };
+  function applyKind(){ const k=$("#g_kind").value;
+    $("#g_lift").style.display   = k==="lift"?"block":"none";
+    $("#g_cardio").style.display = k==="cardio"?"block":"none";
+    $("#g_rest").style.display   = k==="rest"?"block":"none";
+  }
+  $("#g_kind").addEventListener("change", applyKind); applyKind();
   $("#g_cancel").onclick=closeModal;
   if(g.id)$("#g_del").onclick=()=>{ remove("gym",g.id); closeModal(); };
-  $("#g_save").onclick=()=>{ sync();
-    const clean=ex.filter(x=>x.name.trim()).map(x=>({name:x.name.trim(),
-      sets:x.sets.filter(s=>s.reps||s.weight).map(s=>({reps:+s.reps||0,weight:+s.weight||0}))}));
-    save("gym",{date:$("#g_date").value,type:$("#g_type").value.trim()||"Workout",exercises:clean,notes:$("#g_notes").value.trim()},g.id);
-    closeModal(); toast("Session logged"); };
+  $("#g_save").onclick=()=>{
+    const k=$("#g_kind").value;
+    const out={ date:$("#g_date").value, kind:k, notes:$("#g_notes").value.trim() };
+    if(k==="lift"){ sync();
+      out.type=$("#g_type").value.trim()||"Lift";
+      out.exercises=ex.filter(x=>x.name.trim()).map(x=>({name:x.name.trim(),
+        sets:x.sets.filter(s=>s.reps||s.weight).map(s=>({reps:+s.reps||0,weight:+s.weight||0}))}));
+    } else if(k==="cardio"){
+      out.activity=$("#g_activity").value.trim()||"Cardio";
+      out.distance=$("#g_dist").value.trim(); out.duration=$("#g_time").value.trim(); out.effort=$("#g_effort").value;
+    }
+    save("gym", out, g.id);
+    closeModal(); toast(k==="rest"?"Rest day logged":"Workout logged");
+  };
 }
+function isWorkout(g){ return g.kind!=="rest"; }
+function dayClass(g){ return g.kind==="cardio"?"cardio":(g.kind==="rest"?"rest":"lift"); }
+function dayLabel(g){ return g.kind==="cardio"?(g.activity||"Cardio"):(g.kind==="rest"?"Rest":(g.type||"Lift")); }
 function gymStreak(){
-  const days=[...new Set(state.gym.map(g=>g.date))].sort().reverse();
-  if(!days.length)return 0;
-  let streak=0; const today=new Date(); today.setHours(0,0,0,0);
-  let cursor=new Date(today);
-  const last=new Date(days[0]+"T00:00:00");
-  if(Math.round((today-last)/86400000)>1) return 0;
-  cursor=new Date(last);
-  for(const d of days){ const dd=new Date(d+"T00:00:00");
-    if(Math.round((cursor-dd)/86400000)<=1){ streak++; cursor=new Date(dd); cursor.setDate(cursor.getDate()-1); }
+  const cls={};
+  state.gym.forEach(g=>{ const k=g.kind==="rest"?"rest":"workout"; if(cls[g.date]!=="workout") cls[g.date]=k; });
+  const today=new Date(); today.setHours(0,0,0,0);
+  let cur=new Date(today), streak=0, guard=0;
+  if(cls[ymd(cur)]===undefined) cur.setDate(cur.getDate()-1);
+  while(guard++<400){ const k=cls[ymd(cur)];
+    if(k==="workout"){ streak++; cur.setDate(cur.getDate()-1); }
+    else if(k==="rest"){ cur.setDate(cur.getDate()-1); }
     else break; }
   return streak;
 }
@@ -808,58 +873,128 @@ function gymPRs(){
 }
 function renderGym(){
   const streak=gymStreak();
-  const week=state.gym.filter(g=>daysUntil(g.date)>=-7).length;
+  const m=state.gymMonth, mo=m.getMonth(), yr=m.getFullYear();
+  const inMonth=g=>{ const d=new Date(g.date+"T00:00:00"); return d.getMonth()===mo && d.getFullYear()===yr; };
+  const monthWk=state.gym.filter(g=>inMonth(g)&&isWorkout(g)).length;
+  const monthRest=state.gym.filter(g=>inMonth(g)&&g.kind==="rest").length;
   const prs=gymPRs(); const topPr=Object.entries(prs).sort((a,b)=>b[1]-a[1])[0];
   $("#gymStats").innerHTML =
-    `<div class="stat ok"><div class="lbl">&#9211; Current streak</div><div class="val">${streak}</div><div class="note">days</div></div>
-     <div class="stat accent"><div class="lbl">&#9636; This week</div><div class="val">${week}</div><div class="note">sessions</div></div>
-     <div class="stat"><div class="lbl">&#9776; Total logged</div><div class="val">${state.gym.length}</div><div class="note">sessions</div></div>
+    `<div class="stat ok"><div class="lbl">&#9211; Current streak</div><div class="val">${streak}</div><div class="note">${streak===1?"day":"days"}</div></div>
+     <div class="stat accent"><div class="lbl">&#9636; This month</div><div class="val">${monthWk}</div><div class="note">workouts</div></div>
+     <div class="stat"><div class="lbl">&#9789; Rest days</div><div class="val">${monthRest}</div><div class="note">this month</div></div>
      <div class="stat amber"><div class="lbl">&#9733; Top PR</div><div class="val" style="font-size:18px">${topPr?topPr[1]+" lb":"--"}</div><div class="note">${topPr?esc(topPr[0]):"log to track"}</div></div>`;
-  const sorted=[...state.gym].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-  $("#gymList").innerHTML = sorted.length ? sorted.map(g=>`
-    <div class="gym-sess">
-      <div class="gh"><span class="gtype">${esc(g.type)}</span><span class="gdate">${esc(g.date)}</span>
-        <button class="iconbtn" data-edit-gym="${g.id}" style="margin-left:auto">&#9998;</button></div>
-      ${(g.exercises||[]).map(x=>{
-        const max=Math.max(0,...(x.sets||[]).map(s=>s.weight));
-        const isPr=max>0 && max>=(prs[x.name]||0);
-        return `<div class="exrow"><span class="exn">${esc(x.name)}</span>
-          <span class="sets">${(x.sets||[]).map(s=>`${s.reps}\u00D7${s.weight}`).join("  \u00B7  ")}</span>
-          ${isPr?`<span class="pr">PR ${max}</span>`:""}</div>`; }).join("")}
-      ${g.notes?`<div style="font-size:12px;color:var(--txt-3);margin-top:8px;font-style:italic">${esc(g.notes)}</div>`:""}
-    </div>`).join("")
-    : `<div class="panel"><div class="empty">No sessions logged. Hit "Log session" after your next workout.</div></div>`;
+  renderGymCal();
+  renderGymRecent();
 }
+function renderGymCal(){
+  const m=state.gymMonth, mo=m.getMonth(), yr=m.getFullYear();
+  $("#gymRange").textContent = m.toLocaleDateString(undefined,{month:"long",year:"numeric"});
+  const byDate={};
+  state.gym.forEach(g=>{ const cur=byDate[g.date]; if(!cur || (cur.kind==="rest" && g.kind!=="rest")) byDate[g.date]=g; });
+  const startDow=new Date(yr,mo,1).getDay();
+  const daysIn=new Date(yr,mo+1,0).getDate();
+  const todayStr=ymd(new Date());
+  let html=["S","M","T","W","T","F","S"].map(d=>`<div class="gdow">${d}</div>`).join("");
+  for(let i=0;i<startDow;i++) html+=`<div class="gday blank"></div>`;
+  for(let d=1; d<=daysIn; d++){
+    const date=`${yr}-${String(mo+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const g=byDate[date];
+    html+=`<div class="gday ${g?dayClass(g):""} ${date===todayStr?"today":""}" data-gymday="${date}">
+      <span class="gnum">${d}</span>${g?`<span class="glabel">${esc(dayLabel(g))}</span>`:""}</div>`;
+  }
+  $("#gymCal").innerHTML=html;
+}
+function gymSessionCard(g){
+  const prs=gymPRs();
+  if(g.kind==="cardio"){
+    return `<div class="gym-sess">
+      <div class="gh"><span class="gtype">${esc(g.activity||"Cardio")}</span><span class="gdate">${esc(g.date)}</span>
+        <button class="iconbtn" data-edit-gym="${g.id}" style="margin-left:auto">&#9998;</button></div>
+      <div class="exrow" style="border-top:0;gap:14px">
+        ${g.distance?`<span class="sets">&#128207; ${esc(g.distance)}</span>`:""}
+        ${g.duration?`<span class="sets">&#9201; ${esc(g.duration)}</span>`:""}
+        ${g.effort?`<span class="pill lo">${esc(g.effort)}</span>`:""}</div>
+      ${g.notes?`<div style="font-size:12px;color:var(--txt-3);margin-top:6px;font-style:italic">${esc(g.notes)}</div>`:""}
+    </div>`;
+  }
+  return `<div class="gym-sess">
+    <div class="gh"><span class="gtype">${esc(g.type||"Lift")}</span><span class="gdate">${esc(g.date)}</span>
+      <button class="iconbtn" data-edit-gym="${g.id}" style="margin-left:auto">&#9998;</button></div>
+    ${(g.exercises||[]).map(x=>{ const max=Math.max(0,...(x.sets||[]).map(s=>s.weight)); const isPr=max>0&&max>=(prs[x.name]||0);
+      return `<div class="exrow"><span class="exn">${esc(x.name)}</span>
+        <span class="sets">${(x.sets||[]).map(s=>`${s.reps}\u00D7${s.weight}`).join("  \u00B7  ")}</span>
+        ${isPr?`<span class="pr">PR ${max}</span>`:""}</div>`; }).join("")}
+    ${g.notes?`<div style="font-size:12px;color:var(--txt-3);margin-top:8px;font-style:italic">${esc(g.notes)}</div>`:""}
+  </div>`;
+}
+function renderGymRecent(){
+  const recent=state.gym.filter(isWorkout).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,5);
+  $("#gymRecent").innerHTML = recent.length ? recent.map(gymSessionCard).join("")
+    : `<div class="panel"><div class="empty">No workouts yet. Tap a day on the calendar or hit "Log session".</div></div>`;
+}
+$("#gymPrev").addEventListener("click", ()=>{ state.gymMonth.setMonth(state.gymMonth.getMonth()-1); renderGym(); });
+$("#gymNext").addEventListener("click", ()=>{ state.gymMonth.setMonth(state.gymMonth.getMonth()+1); renderGym(); });
+$("#gymToday").addEventListener("click", ()=>{ state.gymMonth=firstOfMonth(new Date()); renderGym(); });
 document.body.addEventListener("click", e=>{
+  const gd=e.target.closest("[data-gymday]"); if(gd){ const date=gd.dataset.gymday;
+    const existing=state.gym.find(g=>g.date===date); gymModal(existing||{date}); return; }
   const ed=e.target.closest("[data-edit-gym]"); if(ed){ const g=state.gym.find(x=>x.id===ed.dataset.editGym); if(g)gymModal(g); }
 });
 
 /* ============================================================
    CALENDAR (Google, two-way via GIS token + REST)
    ============================================================ */
-let tokenClient=null;
-function initToken(cb){
-  if(!window.google||!google.accounts){ toast("Google library still loading - try again in a second."); return; }
-  if(!tokenClient){
-    tokenClient=google.accounts.oauth2.initTokenClient({
-      client_id:GOOGLE_CLIENT_ID, scope:"https://www.googleapis.com/auth/calendar.events",
-      callback:(resp)=>{ if(resp.access_token){ state.calToken=resp.access_token;
-        $("#calNotConnected").style.display="none"; $("#calView").style.display="block"; $("#addEventBtn").style.display="inline-flex";
-        refreshEvents(); } if(cb)cb(); }});
-  }
-  tokenClient.requestAccessToken({prompt: state.calToken?"":"consent"});
+let tokenClient=null, tokenExpiry=0, pendingTokenCb=null;
+let calConnected=false; try{ calConnected = localStorage.getItem("calConnected")==="1"; }catch(_){}
+
+function waitForGIS(cb,tries=0){
+  if(window.google && google.accounts && google.accounts.oauth2) cb();
+  else if(tries<50) setTimeout(()=>waitForGIS(cb,tries+1),100);
+  else toast("Google library didn't load - check your connection.");
 }
-$("#calConnect").addEventListener("click", ()=>initToken());
-$("#calConnect2").addEventListener("click", ()=>initToken());
+function buildTokenClient(){
+  tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:GOOGLE_CLIENT_ID, scope:"https://www.googleapis.com/auth/calendar.events",
+    callback:(resp)=>{
+      const cb=pendingTokenCb; pendingTokenCb=null;
+      if(resp && resp.access_token){
+        state.calToken=resp.access_token;
+        tokenExpiry=Date.now()+(((+resp.expires_in)||3600)-120)*1000;
+        calConnected=true; try{ localStorage.setItem("calConnected","1"); }catch(_){}
+        showCalConnected();
+      }
+      if(cb) cb(resp);
+    },
+    error_callback:()=>{ const cb=pendingTokenCb; pendingTokenCb=null; if(cb) cb(null); }
+  });
+}
+function requestToken(interactive, cb){
+  waitForGIS(()=>{ if(!tokenClient) buildTokenClient(); pendingTokenCb=cb||null;
+    tokenClient.requestAccessToken({ prompt: interactive?"consent":"" }); });
+}
+async function ensureToken(){
+  if(state.calToken && Date.now()<tokenExpiry) return state.calToken;
+  return new Promise(res=>requestToken(false, resp=>res(resp&&resp.access_token?resp.access_token:null)));
+}
+function autoConnectCalendar(){ if(calConnected) requestToken(false, resp=>{ if(resp&&resp.access_token) refreshEvents(); }); }
+function showCalConnected(){ $("#calNotConnected").style.display="none"; $("#calView").style.display="block"; $("#addEventBtn").style.display="inline-flex"; }
+function showCalDisconnected(){ $("#calView").style.display="none"; $("#calNotConnected").style.display="block"; $("#addEventBtn").style.display="none"; }
+function connectCalendar(){ requestToken(true, resp=>{ if(resp&&resp.access_token) refreshEvents(); }); }
+$("#calConnect").addEventListener("click", connectCalendar);
+$("#calConnect2").addEventListener("click", connectCalendar);
 function evStart(e){ return new Date(e.start.dateTime||e.start.date+"T00:00:00"); }
 async function calFetch(url,opts={}){
-  const r=await fetch("https://www.googleapis.com/calendar/v3"+url,{...opts,
-    headers:{Authorization:"Bearer "+state.calToken,"Content-Type":"application/json",...(opts.headers||{})}});
-  if(r.status===401){ state.calToken=null; toast("Calendar session expired - reconnect."); $("#calView").style.display="none"; $("#calNotConnected").style.display="block"; throw new Error("401"); }
+  let tok=await ensureToken();
+  if(!tok){ showCalDisconnected(); throw new Error("no-token"); }
+  const go=t=>fetch("https://www.googleapis.com/calendar/v3"+url,{...opts,
+    headers:{Authorization:"Bearer "+t,"Content-Type":"application/json",...(opts.headers||{})}});
+  let r=await go(tok);
+  if(r.status===401){ state.calToken=null; tokenExpiry=0; tok=await ensureToken();
+    if(!tok){ showCalDisconnected(); throw new Error("401"); } r=await go(tok); }
   return r.status===204?{}:r.json();
 }
 async function refreshEvents(){
-  if(!state.calToken)return;
+  if(!state.calToken && !calConnected) return;
   const start=new Date(state.weekStart); const end=new Date(start); end.setDate(end.getDate()+7);
   try{
     const j=await calFetch(`/calendars/primary/events?timeMin=${start.toISOString()}&timeMax=${end.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=100`);
