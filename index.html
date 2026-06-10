@@ -46,6 +46,8 @@ button{font-family:var(--body);cursor:pointer}
 .nav button .ic{width:18px;text-align:center;font-size:16px}
 .nav button:hover{background:var(--panel);color:var(--txt)}
 .nav button.active{background:var(--accent-bg);color:var(--accent);box-shadow:inset 2px 0 0 var(--accent)}
+.nav button{cursor:grab}
+.nav button.dragging{opacity:.45;cursor:grabbing}
 .nav .badge{margin-left:auto;font-family:var(--mono);font-size:10px;background:var(--danger-bg);color:var(--danger);
   padding:1px 7px;border-radius:20px}
 .userbox{border-top:1px solid var(--line);padding-top:12px;display:flex;align-items:center;gap:10px}
@@ -200,7 +202,29 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line-2);
   color:var(--txt);padding:11px 18px;border-radius:9px;font-size:13px;z-index:200;opacity:0;transition:.25s;pointer-events:none}
 .toast.show{opacity:1;bottom:30px}
-@media(max-width:760px){#app{grid-template-columns:1fr}.sidebar{position:static;height:auto;flex-direction:row;flex-wrap:wrap}.nav{flex-direction:row;flex-wrap:wrap}.nav button{width:auto}.week{grid-template-columns:1fr;}}
+@media(max-width:760px){
+  #app{grid-template-columns:1fr}
+  .sidebar{position:sticky;top:0;z-index:30;height:auto;flex-direction:column;gap:9px;padding:10px 12px 8px;border-right:0;border-bottom:1px solid var(--line)}
+  .brand{border-bottom:0;padding:0;margin:0}
+  .brand h1{font-size:15px}
+  .nav{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .nav button{width:auto;flex:0 0 auto;white-space:nowrap;padding:8px 13px;font-size:13px;cursor:pointer}
+  .nav .badge{margin-left:6px}
+  .userbox{position:absolute;top:12px;right:12px;border-top:0;padding:0;width:auto;gap:8px}
+  .userbox .meta{display:none}
+  .userbox img{width:30px;height:30px}
+  .main{padding:16px 14px 48px;max-width:100%}
+  .phead{margin-bottom:16px}
+  .phead h2{font-size:22px}
+  .calbar{flex-wrap:wrap}
+  .week{grid-template-columns:1fr}
+  .gcal{gap:4px}
+  .gcal .gdow{font-size:9px}
+  .gday{min-height:46px;padding:4px 5px}
+  .gday .glabel{display:none}
+  .panels{grid-template-columns:1fr}
+  .modal-bg{padding:20px 12px}
+}
 </style>
 </head>
 <body>
@@ -493,7 +517,7 @@ function renderUser(){
   $("#userbox").innerHTML =
     `<img src="${u.photoURL||""}" alt="" onerror="this.style.display='none'">
      <div class="meta"><b>${esc(u.displayName||"You")}</b><span>${esc(u.email||"")}</span></div>
-     <button class="out">Out</button>`;
+     <button class="out">Log Out</button>`;
   $("#greeting").textContent = "Welcome back, "+ (u.displayName? u.displayName.split(" ")[0] : "Commander");
 }
 
@@ -525,6 +549,28 @@ async function remove(name, id){ return deleteDoc(doc(db,"users",state.user.uid,
 
 /* ---------- navigation ---------- */
 $("#nav").addEventListener("click", e=>{ const b=e.target.closest("button"); if(b) goto(b.dataset.page); });
+
+/* draggable, persistent sidebar order */
+const NAV_ORDER_KEY="cc_nav_order";
+const navEl=$("#nav");
+function saveNavOrder(){
+  const order=[...navEl.querySelectorAll("button")].map(b=>b.dataset.page);
+  try{ localStorage.setItem(NAV_ORDER_KEY, JSON.stringify(order)); }catch(_){}
+}
+function applyNavOrder(){
+  let order=null; try{ order=JSON.parse(localStorage.getItem(NAV_ORDER_KEY)||"null"); }catch(_){}
+  if(Array.isArray(order)) order.forEach(pg=>{ const b=navEl.querySelector(`button[data-page="${pg}"]`); if(b) navEl.appendChild(b); });
+}
+navEl.querySelectorAll("button").forEach(b=>b.setAttribute("draggable","true"));
+let navDrag=null;
+navEl.addEventListener("dragstart", e=>{ navDrag=e.target.closest("button"); if(navDrag) navDrag.classList.add("dragging"); });
+navEl.addEventListener("dragend", ()=>{ if(navDrag){ navDrag.classList.remove("dragging"); navDrag=null; saveNavOrder(); } });
+navEl.addEventListener("dragover", e=>{ e.preventDefault(); if(!navDrag) return;
+  const rest=[...navEl.querySelectorAll("button:not(.dragging)")];
+  const after=rest.find(el=>{ const r=el.getBoundingClientRect(); return e.clientY < r.top + r.height/2; });
+  if(after) navEl.insertBefore(navDrag, after); else navEl.appendChild(navDrag);
+});
+applyNavOrder();
 document.body.addEventListener("click", e=>{ const m=e.target.closest("[data-go]"); if(m) goto(m.dataset.go); });
 function goto(page){
   document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active", b.dataset.page===page));
@@ -861,8 +907,7 @@ function gymStreak(){
   let cur=new Date(today), streak=0, guard=0;
   if(cls[ymd(cur)]===undefined) cur.setDate(cur.getDate()-1);
   while(guard++<400){ const k=cls[ymd(cur)];
-    if(k==="workout"){ streak++; cur.setDate(cur.getDate()-1); }
-    else if(k==="rest"){ cur.setDate(cur.getDate()-1); }
+    if(k){ streak++; cur.setDate(cur.getDate()-1); }   // workout OR rest keeps the streak alive
     else break; }
   return streak;
 }
