@@ -73,6 +73,7 @@ button{font-family:var(--body);cursor:pointer}
 .stat .lbl{font-size:12px;color:var(--txt-2);display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .stat .val{font-family:var(--disp);font-size:30px;font-weight:600;line-height:1}
 .stat .note{font-family:var(--mono);font-size:11px;color:var(--txt-3);margin-top:5px}
+.stat .note::first-letter{text-transform:uppercase}
 .panels{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
 .panel h3{font-family:var(--disp);font-size:14px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--txt-2);
@@ -94,7 +95,7 @@ button{font-family:var(--body);cursor:pointer}
 .check:hover{border-color:var(--accent)}
 .check.done{background:var(--accent);border-color:var(--accent);color:#04222a}
 .row.done .t b{text-decoration:line-through;color:var(--txt-3)}
-.pill{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;letter-spacing:.5px;white-space:nowrap}
+.pill{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;letter-spacing:.5px;white-space:nowrap;text-transform:capitalize}
 .pill.hi{background:var(--danger-bg);color:var(--danger)} .pill.med{background:var(--amber-bg);color:var(--amber)}
 .pill.lo{background:var(--accent-bg);color:var(--accent)} .pill.due{background:var(--panel-2);color:var(--txt-2)}
 .pill.over{background:var(--danger-bg);color:var(--danger)}
@@ -108,6 +109,10 @@ button{font-family:var(--body);cursor:pointer}
 .iconbtn.del:hover{border-color:var(--danger);color:var(--danger)}
 
 /* buttons / inputs */
+.seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:3px;margin-bottom:16px;gap:3px}
+.seg-btn{background:transparent;border:0;color:var(--txt-2);padding:7px 16px;border-radius:7px;font-size:13px;font-weight:500}
+.seg-btn.active{background:var(--accent-bg);color:var(--accent)}
+.seg-btn:hover{color:var(--txt)}
 .btn{background:var(--accent);color:#04222a;border:0;border-radius:7px;padding:9px 15px;font-weight:600;font-size:13px;letter-spacing:.3px;display:inline-flex;align-items:center;gap:7px}
 .btn:hover{filter:brightness(1.08)}
 .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
@@ -213,9 +218,8 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
       <button data-page="calendar"><span class="ic">&#9783;</span>Calendar</button>
       <button data-page="gym"><span class="ic">&#9211;</span>Gym Log</button>
       <button data-page="want"><span class="ic">&#9788;</span>Want To Do</button>
-      <button data-page="projects"><span class="ic">&#9638;</span>Projects</button>
       <button data-page="inventory"><span class="ic">&#9707;</span>Inventory</button>
-      <button data-page="wishlist"><span class="ic">&#9734;</span>Wish-List</button>
+      <button data-page="recipes"><span class="ic">&#9776;</span>Recipes</button>
     </nav>
     <div class="userbox" id="userbox"></div>
   </aside>
@@ -234,10 +238,6 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
         <div class="panel">
           <h3><span class="ic">&#10003;</span>Due soon<span class="more" data-go="todo">OPEN &#8250;</span></h3>
           <div id="homeTodos"></div>
-        </div>
-        <div class="panel">
-          <h3><span class="ic">&#9638;</span>Active projects<span class="more" data-go="projects">OPEN &#8250;</span></h3>
-          <div id="homeProjects"></div>
         </div>
         <div class="panel">
           <h3><span class="ic">&#9788;</span>Want to do<span class="more" data-go="want">OPEN &#8250;</span></h3>
@@ -305,44 +305,48 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
       <div class="listcard" id="wantList"></div>
     </section>
 
-    <!-- ---------- PROJECTS ---------- -->
-    <section class="page" id="page-projects">
-      <div class="phead">
-        <div><h2>Projects</h2><div class="sub">Keep it visible</div></div>
-        <button class="btn" id="addProjBtn">&#43; New project</button>
-      </div>
-      <div class="grid panels" id="projList"></div>
-    </section>
-
-    <!-- ---------- INVENTORY ---------- -->
+    <!-- ---------- INVENTORY (+ Wish-List) ---------- -->
     <section class="page" id="page-inventory">
       <div class="phead">
-        <div><h2>Inventory</h2><div class="sub">Bins &amp; loose items</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div><h2>Inventory</h2><div class="sub">Bins, loose items &amp; wish-list</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="invStockActions">
           <button class="btn ghost sm" id="invExportBtn">&#8681; Export</button>
           <button class="btn ghost sm" id="invImportBtn">&#8679; Import</button>
           <input type="file" id="invImportFile" accept=".csv" style="display:none">
           <button class="btn ghost sm" id="addBinBtn">&#43; Bin</button>
           <button class="btn" id="addItemBtn">&#43; Item</button>
         </div>
+        <div id="invWishActions" style="display:none">
+          <button class="btn" id="addWishBtn">&#43; Wish-list item</button>
+        </div>
       </div>
-      <div class="grid stats" id="invStats"></div>
-      <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px">
-        <input id="invSearch" placeholder="Search items..." style="flex:1;min-width:160px">
-        <select id="invCat" style="width:auto;min-width:130px"></select>
-        <select id="invBin" style="width:auto;min-width:130px"></select>
+      <div class="seg" id="invSeg">
+        <button class="seg-btn active" data-inv="stock">In stock</button>
+        <button class="seg-btn" data-inv="wish">Wish-list</button>
       </div>
-      <div id="invList"></div>
+      <div id="invStockView">
+        <div class="grid stats" id="invStats"></div>
+        <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px">
+          <input id="invSearch" placeholder="Search items..." style="flex:1;min-width:160px">
+          <select id="invCat" style="width:auto;min-width:130px"></select>
+          <select id="invBin" style="width:auto;min-width:130px"></select>
+        </div>
+        <div id="invList"></div>
+      </div>
+      <div id="invWishView" style="display:none">
+        <div class="grid stats" id="wishStats"></div>
+        <div class="listcard" id="wishList"></div>
+      </div>
     </section>
 
-    <!-- ---------- WISH-LIST ---------- -->
-    <section class="page" id="page-wishlist">
+    <!-- ---------- RECIPES ---------- -->
+    <section class="page" id="page-recipes">
       <div class="phead">
-        <div><h2>Wish-List</h2><div class="sub">Things to get</div></div>
-        <button class="btn" id="addWishBtn">&#43; Add item</button>
+        <div><h2>Recipes</h2><div class="sub">Your cookbook</div></div>
+        <button class="btn" id="addRecipeBtn">&#43; New recipe</button>
       </div>
-      <div class="grid stats" id="wishStats"></div>
-      <div class="listcard" id="wishList"></div>
+      <div style="margin-bottom:16px"><input id="recipeSearch" placeholder="Search recipes..." style="max-width:340px"></div>
+      <div class="grid panels" id="recipeList"></div>
     </section>
 
   </main>
@@ -372,11 +376,9 @@ const GOOGLE_CLIENT_ID = "1066809154238-jhjuon76ekg04f74rjjte9konq34pc0a.apps.go
 
 // Edit these freely - they are your quick links and countdowns
 const LAUNCHER_LINKS = [
-  { name: "Home Assistant", url: "http://homeassistant.local:8123" },
   { name: "Bin Tracker",    url: "https://grayman500.github.io/Bin-Tracker" },
   { name: "Game Tracker",   url: "https://grayman500.github.io/" },
-  { name: "GitHub",         url: "https://github.com/grayman500" },
-  { name: "P1S",            url: "https://bambulab.com" }
+  { name: "GitHub",         url: "https://github.com/grayman500" }
 ];
 
 const COUNTDOWNS = [
@@ -398,8 +400,8 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const state = { user:null, todos:[], wants:[], gym:[], projects:[], events:[],
-                bins:[], inventory:[], wishlist:[], invFilter:{search:"",cat:"all",bin:"all"}, pendingBin:null,
+const state = { user:null, todos:[], wants:[], gym:[], events:[],
+                bins:[], inventory:[], wishlist:[], recipes:[], invFilter:{search:"",cat:"all",bin:"all"}, pendingBin:null,
                 calToken:null, weekStart:startOfWeek(new Date()) };
 let unsub = [];
 
@@ -428,9 +430,16 @@ async function login(){
 }
 function showLoginWarn(e){
   const w=$("#loginWarn"); w.style.display="block";
-  if(String(e.message||e).includes("api-key") || GOOGLE_CLIENT_ID.startsWith("PASTE"))
-    w.textContent="Looks like the config placeholders aren't filled in yet. Add your Firebase config + OAuth client ID near the top of the file.";
-  else w.textContent="Sign-in failed: "+(e.code||e.message||e)+". Check that this domain is added to Firebase > Authentication > Authorized domains.";
+  const code=String(e.code||e.message||e);
+  if(GOOGLE_CLIENT_ID.startsWith("PASTE") || code.includes("api-key"))
+    w.textContent="Config placeholders aren't filled in yet. Add your Firebase config + OAuth client ID near the top of the file.";
+  else if(code.includes("configuration-not-found"))
+    w.textContent="Enable the Google provider in Firebase > Authentication > Sign-in method (click Get started first if you haven't opened Authentication).";
+  else if(code.includes("unauthorized-domain"))
+    w.textContent="Add this domain in Firebase > Authentication > Settings > Authorized domains.";
+  else if(code.includes("popup-blocked") || code.includes("popup-closed"))
+    w.textContent="The sign-in popup was blocked or closed. Allow popups for this site and try again.";
+  else w.textContent="Sign-in failed: "+code;
 }
 $("#userbox").addEventListener("click", e=>{ if(e.target.classList.contains("out")) signOut(auth); });
 
@@ -463,15 +472,22 @@ function renderUser(){
 
 /* ---------- firestore live data ---------- */
 function col(name){ return collection(db, "users", state.user.uid, name); }
+function listen(name, render){
+  unsub.push(onSnapshot(col(name),
+    s=>{ try{ state[name]=snap(s); render(); }catch(err){ console.error("render "+name, err); } },
+    err=>{ console.error("Firestore "+name, err);
+      if(String(err.code||err).includes("permission")) toast("Can't read "+name+" - publish your Firestore security rules.");
+      else toast("Sync error on "+name); }));
+}
 function attachListeners(){
   unsub.forEach(u=>u()); unsub=[];
-  unsub.push(onSnapshot(col("todos"),    s=>{ state.todos    = snap(s); renderTodos(); renderHome(); }));
-  unsub.push(onSnapshot(col("wants"),    s=>{ state.wants    = snap(s); renderWants(); renderHome(); }));
-  unsub.push(onSnapshot(col("projects"), s=>{ state.projects = snap(s); renderProjects(); renderHome(); }));
-  unsub.push(onSnapshot(col("gym"),      s=>{ state.gym      = snap(s); renderGym(); renderHome(); }));
-  unsub.push(onSnapshot(col("bins"),      s=>{ state.bins      = snap(s); renderInventory(); applyPendingBin(); }));
-  unsub.push(onSnapshot(col("inventory"), s=>{ state.inventory = snap(s); renderInventory(); }));
-  unsub.push(onSnapshot(col("wishlist"),  s=>{ state.wishlist  = snap(s); renderWishlist(); }));
+  listen("todos",     ()=>{ renderTodos(); renderHome(); });
+  listen("wants",     ()=>{ renderWants(); renderHome(); });
+  listen("gym",       ()=>{ renderGym(); renderHome(); });
+  listen("bins",      ()=>{ renderInventory(); applyPendingBin(); });
+  listen("inventory", ()=>{ renderInventory(); });
+  listen("wishlist",  ()=>{ renderWishlist(); });
+  listen("recipes",   ()=>{ renderRecipes(); });
 }
 function snap(s){ const a=[]; s.forEach(d=>a.push({id:d.id, ...d.data()})); return a; }
 async function save(name, data, id){
@@ -522,13 +538,6 @@ function renderHome(){
       <div class="t"><b>${esc(t.title)}</b></div>
       ${t.due?`<span class="pill ${dc||"due"}">${dueLabel(t)}</span>`:`<span class="pill ${t.priority||'lo'}">${(t.priority||'low')}</span>`}</div>`;
   }).join("") : `<div class="empty">No open tasks. Nice.</div>`;
-
-  // projects
-  const ap = state.projects.filter(p=>p.status!=="done").slice(0,4);
-  $("#homeProjects").innerHTML = ap.length ? ap.map(p=>
-    `<div class="row"><div class="t"><b>${esc(p.name)}</b><small>${esc(p.note||p.category||"")}</small></div>
-     <span class="pill ${p.status==="active"?"lo":"due"}">${esc(p.status||"idea")}</span></div>`).join("")
-    : `<div class="empty">No active projects yet.</div>`;
 
   // wants
   $("#homeWants").innerHTML = state.wants.length ?
@@ -654,49 +663,75 @@ document.body.addEventListener("click", e=>{
 });
 
 /* ============================================================
-   PROJECTS
+   INVENTORY  <->  WISH-LIST  toggle
    ============================================================ */
-$("#addProjBtn").addEventListener("click", ()=>projModal());
-function projModal(p={}){
-  openModal(`<h3><span class="ic">&#9638;</span>${p.id?"Edit project":"New project"}</h3>
-    <div class="field"><label>Name</label><input id="p_name" value="${esc(p.name||"")}"></div>
-    <div class="frow">
-      <div class="field"><label>Status</label><select id="p_status">
-        <option value="active"${p.status==="active"?" selected":""}>Active</option>
-        <option value="idea"${p.status==="idea"?" selected":""}>Idea</option>
-        <option value="paused"${p.status==="paused"?" selected":""}>Paused</option>
-        <option value="done"${p.status==="done"?" selected":""}>Done</option></select></div>
-      <div class="field"><label>Category</label><input id="p_cat" value="${esc(p.category||"")}" placeholder="3D print, dev, lab..."></div>
-    </div>
-    <div class="field"><label>Current status / next step</label><textarea id="p_note" rows="2">${esc(p.note||"")}</textarea></div>
-    <div class="field"><label>Link (optional)</label><input id="p_link" value="${esc(p.link||"")}" placeholder="https://..."></div>
-    <div class="modal-actions">
-      ${p.id?`<button class="btn ghost left" id="p_del">Delete</button>`:""}
-      <button class="btn ghost" id="p_cancel">Cancel</button>
-      <button class="btn" id="p_save">Save</button></div>`);
-  $("#p_cancel").onclick=closeModal;
-  if(p.id)$("#p_del").onclick=()=>{ remove("projects",p.id); closeModal(); };
-  $("#p_save").onclick=()=>{ const name=$("#p_name").value.trim(); if(!name)return;
-    save("projects",{name,status:$("#p_status").value,category:$("#p_cat").value.trim(),note:$("#p_note").value.trim(),link:$("#p_link").value.trim()},p.id);
-    closeModal(); toast("Saved"); };
+$("#invSeg").addEventListener("click", e=>{ const b=e.target.closest("[data-inv]"); if(b) setInvView(b.dataset.inv); });
+function setInvView(view){
+  document.querySelectorAll("#invSeg .seg-btn").forEach(b=>b.classList.toggle("active", b.dataset.inv===view));
+  $("#invStockView").style.display   = view==="stock"?"block":"none";
+  $("#invWishView").style.display    = view==="wish"?"block":"none";
+  $("#invStockActions").style.display = view==="stock"?"flex":"none";
+  $("#invWishActions").style.display  = view==="wish"?"block":"none";
 }
-function renderProjects(){
-  const order={active:0,idea:1,paused:2,done:3};
-  const ps=[...state.projects].sort((a,b)=>(order[a.status]??1)-(order[b.status]??1));
-  $("#projList").innerHTML = ps.length ? ps.map(p=>
-    `<div class="panel">
-      <h3 style="text-transform:none;font-size:15px;color:var(--txt)">${esc(p.name)}
-        <span class="more" data-edit-proj="${p.id}">EDIT</span></h3>
-      <div style="display:flex;gap:8px;margin-bottom:9px">
-        <span class="pill ${p.status==="active"?"lo":p.status==="done"?"due":"med"}">${esc(p.status||"idea")}</span>
-        ${p.category?`<span class="pill due">${esc(p.category)}</span>`:""}</div>
-      <div style="font-size:13px;color:var(--txt-2)">${esc(p.note||"")}</div>
-      ${p.link?`<a href="${esc(p.link)}" target="_blank" rel="noopener" style="font-size:12px;font-family:var(--mono)">Open link &#8599;</a>`:""}
-    </div>`).join("")
-    : `<div class="panel"><div class="empty">No projects yet. Add the dashboard itself to start.</div></div>`;
+
+/* ============================================================
+   RECIPES
+   ============================================================ */
+let recipeQuery="";
+$("#addRecipeBtn").addEventListener("click", ()=>recipeModal());
+$("#recipeSearch").addEventListener("input", e=>{ recipeQuery=e.target.value.toLowerCase(); renderRecipes(); });
+function recipeModal(r={}){
+  openModal(`<h3><span class="ic">&#9776;</span>${r.id?"Edit recipe":"New recipe"}</h3>
+    <div class="frow">
+      <div class="field" style="flex:3"><label>Title</label><input id="r_title" value="${esc(r.title||"")}"></div>
+      <div class="field" style="flex:1"><label>Servings</label><input id="r_serv" value="${esc(r.servings||"")}" placeholder="4"></div>
+    </div>
+    <div class="field"><label>Tags</label><input id="r_tags" value="${esc(r.tags||"")}" placeholder="dinner, quick, vegetarian"></div>
+    <div class="field"><label>Ingredients (one per line)</label><textarea id="r_ing" rows="5">${esc(r.ingredients||"")}</textarea></div>
+    <div class="field"><label>Steps</label><textarea id="r_steps" rows="6">${esc(r.steps||"")}</textarea></div>
+    <div class="field"><label>Source link (optional)</label><input id="r_link" value="${esc(r.link||"")}" placeholder="https://..."></div>
+    <div class="modal-actions">
+      ${r.id?`<button class="btn ghost left" id="r_del">Delete</button>`:""}
+      <button class="btn ghost" id="r_cancel">Cancel</button>
+      <button class="btn" id="r_save">Save</button></div>`);
+  $("#r_cancel").onclick=closeModal;
+  if(r.id)$("#r_del").onclick=()=>{ remove("recipes",r.id); closeModal(); toast("Recipe deleted"); };
+  $("#r_save").onclick=()=>{ const title=$("#r_title").value.trim(); if(!title)return;
+    save("recipes",{title,servings:$("#r_serv").value.trim(),tags:$("#r_tags").value.trim(),
+      ingredients:$("#r_ing").value,steps:$("#r_steps").value,link:$("#r_link").value.trim()},r.id);
+    closeModal(); toast(r.id?"Recipe updated":"Recipe added"); };
+}
+function recipeView(r){
+  const ing=(r.ingredients||"").split("\n").filter(x=>x.trim());
+  const tags=(r.tags||"").split(",").map(t=>t.trim()).filter(Boolean);
+  openModal(`<h3><span class="ic">&#9776;</span>${esc(r.title)}</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      ${r.servings?`<span class="pill due">${esc(r.servings)} servings</span>`:""}
+      ${tags.map(t=>`<span class="pill lo">${esc(t)}</span>`).join("")}</div>
+    ${ing.length?`<label>Ingredients</label><ul style="margin:4px 0 14px 18px;font-size:14px;line-height:1.7">${ing.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}
+    ${r.steps?`<label>Steps</label><div style="font-size:14px;white-space:pre-wrap;margin-top:4px;color:var(--txt)">${esc(r.steps)}</div>`:""}
+    ${r.link?`<div style="margin-top:12px"><a href="${esc(r.link)}" target="_blank" rel="noopener" style="font-family:var(--mono);font-size:12px">Source &#8599;</a></div>`:""}
+    <div class="modal-actions"><button class="btn ghost left" data-edit-recipe="${r.id}">Edit</button><button class="btn" id="r_close">Close</button></div>`);
+  $("#r_close").onclick=closeModal;
+}
+function renderRecipes(){
+  let rs=[...state.recipes].sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+  if(recipeQuery) rs=rs.filter(r=>((r.title||"")+" "+(r.tags||"")+" "+(r.ingredients||"")).toLowerCase().includes(recipeQuery));
+  $("#recipeList").innerHTML = rs.length ? rs.map(r=>{
+    const tags=(r.tags||"").split(",").map(t=>t.trim()).filter(Boolean);
+    const firstIng=(r.ingredients||"").split("\n").filter(x=>x.trim()).slice(0,3).join(", ");
+    return `<div class="panel" data-view-recipe="${r.id}" style="cursor:pointer">
+      <h3 style="text-transform:none;font-size:16px;color:var(--txt)">${esc(r.title)}</h3>
+      ${(tags.length||r.servings)?`<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px">
+        ${r.servings?`<span class="pill due">${esc(r.servings)} servings</span>`:""}
+        ${tags.map(t=>`<span class="pill lo">${esc(t)}</span>`).join("")}</div>`:""}
+      <div style="font-size:13px;color:var(--txt-2)">${esc(firstIng)||"Tap to view"}</div>
+    </div>`;
+  }).join("") : `<div class="panel"><div class="empty">${recipeQuery?"No recipes match.":"No recipes yet. Add your first one."}</div></div>`;
 }
 document.body.addEventListener("click", e=>{
-  const ed=e.target.closest("[data-edit-proj]"); if(ed){ const p=state.projects.find(x=>x.id===ed.dataset.editProj); if(p)projModal(p); }
+  const v=e.target.closest("[data-view-recipe]"); if(v){ const r=state.recipes.find(x=>x.id===v.dataset.viewRecipe); if(r)recipeView(r); }
+  const ed=e.target.closest("[data-edit-recipe]"); if(ed){ const r=state.recipes.find(x=>x.id===ed.dataset.editRecipe); if(r)recipeModal(r); }
 });
 
 /* ============================================================
