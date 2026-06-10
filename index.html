@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Command Center</title>
+<meta name="theme-color" content="#0c0f14">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e2730'/%3E%3Crect width='62' height='62' x='1' y='1' rx='13' fill='none' stroke='%2319586a' stroke-width='2'/%3E%3Ctext x='32' y='44' font-family='monospace' font-size='36' font-weight='bold' fill='%2339c8e0' text-anchor='middle'%3EC%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -200,7 +202,9 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
 #loading .spin{width:42px;height:42px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line-2);
-  color:var(--txt);padding:11px 18px;border-radius:9px;font-size:13px;z-index:200;opacity:0;transition:.25s;pointer-events:none}
+  color:var(--txt);padding:11px 18px;border-radius:9px;font-size:13px;z-index:200;opacity:0;transition:.25s;pointer-events:none;display:flex;align-items:center;gap:12px}
+.toast .toast-btn{background:transparent;border:1px solid var(--accent-dim);color:var(--accent);border-radius:6px;padding:4px 11px;font-size:12px;font-weight:600}
+.toast .toast-btn:hover{background:var(--accent-bg)}
 .toast.show{opacity:1;bottom:30px}
 @media(max-width:760px){
   #app{grid-template-columns:1fr}
@@ -285,7 +289,7 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
         </div>
       </div>
       <div class="panel" style="margin-top:14px">
-        <h3><span class="ic">&#9889;</span>Launcher</h3>
+        <h3><span class="ic">&#9889;</span>Launcher<span class="more" id="editLauncher">EDIT</span></h3>
         <div class="launcher" id="launcher"></div>
       </div>
     </section>
@@ -294,7 +298,10 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
     <section class="page" id="page-todo">
       <div class="phead">
         <div><h2>To-Do</h2><div class="sub">Tasks &amp; priorities</div></div>
-        <button class="btn" id="addTodoBtn">&#43; New task</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn ghost sm" id="clearDoneBtn">Clear completed</button>
+          <button class="btn" id="addTodoBtn">&#43; New task</button>
+        </div>
       </div>
       <div class="section-title">Open</div>
       <div class="listcard" id="todoOpen"></div>
@@ -449,7 +456,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const state = { user:null, todos:[], wants:[], gym:[], events:[],
-                bins:[], inventory:[], wishlist:[], recipes:[], invFilter:{search:"",cat:"all",bin:"all"}, pendingBin:null,
+                bins:[], inventory:[], wishlist:[], recipes:[], prefs:{}, invFilter:{search:"",cat:"all",bin:"all"}, pendingBin:null,
                 calToken:null, weekStart:startOfWeek(new Date()), gymMonth:firstOfMonth(new Date()) };
 let unsub = [];
 
@@ -457,7 +464,20 @@ let unsub = [];
 const $ = s => document.querySelector(s);
 const el = (t,c,h) => { const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
 const esc = s => (s||"").replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2200); }
+let toastTimer=null, toastAction=null;
+function toast(m, action){
+  const t=$("#toast");
+  t.innerHTML = esc(m) + (action?`<button class="toast-btn" id="toastBtn">Undo</button>`:"");
+  toastAction = action||null;
+  t.style.pointerEvents = action?"auto":"none";
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove("show"), action?6000:2200);
+}
+document.body.addEventListener("click", e=>{
+  if(e.target.id==="toastBtn" && toastAction){ const fn=toastAction; toastAction=null;
+    $("#toast").classList.remove("show"); fn(); }
+});
 function startOfWeek(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()-x.getDay()); return x; }
 function firstOfMonth(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(1); return x; }
 function ymd(d){ const x=new Date(d); return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); }
@@ -470,6 +490,52 @@ function dueLabel(t){ if(!t.due) return ""; const d=daysUntil(t.due); if(d<0) re
 function openModal(html){ $("#modal").innerHTML=html; $("#modalBg").classList.add("open"); }
 function closeModal(){ $("#modalBg").classList.remove("open"); }
 $("#modalBg").addEventListener("click", e=>{ if(e.target.id==="modalBg") closeModal(); });
+document.addEventListener("keydown", e=>{
+  if(!$("#modalBg").classList.contains("open")) return;
+  if(e.key==="Escape"){ closeModal(); return; }
+  if(e.key==="Enter" && (e.target.tagName==="INPUT" || e.target.tagName==="SELECT") && e.target.closest("#modal")){
+    e.preventDefault();
+    const primary=[...$("#modal").querySelectorAll(".modal-actions .btn:not(.ghost)")].pop();
+    if(primary) primary.click();
+  }
+});
+
+/* ---------- launcher & countdown editors ---------- */
+function rowsEditor(opts){
+  let rows = opts.rows.length?opts.rows.map(r=>({...r})):[{a:"",b:""}];
+  openModal(`<h3><span class="ic">${opts.icon}</span>${opts.title}</h3>
+    <div id="re_rows"></div>
+    <button class="btn ghost sm" id="re_add" style="margin-top:6px">&#43; Add</button>
+    <div class="modal-actions"><button class="btn ghost" id="re_cancel">Cancel</button><button class="btn" id="re_save">Save</button></div>`);
+  const host=$("#re_rows");
+  function draw(){
+    host.innerHTML=rows.map((r,i)=>`
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+        <input data-ra="${i}" value="${esc(r.a)}" placeholder="${opts.aPh}" style="flex:2">
+        <input data-rb="${i}" ${opts.bType?`type="${opts.bType}"`:""} value="${esc(r.b)}" placeholder="${opts.bPh}" style="flex:3">
+        <button class="iconbtn del" data-rd="${i}">&#10005;</button></div>`).join("");
+  }
+  function sync(){ rows.forEach((r,i)=>{ const a=host.querySelector(`[data-ra="${i}"]`),b=host.querySelector(`[data-rb="${i}"]`); if(a)r.a=a.value; if(b)r.b=b.value; }); }
+  draw();
+  host.addEventListener("click", e=>{ const d=e.target.closest("[data-rd]"); if(d){ sync(); rows.splice(+d.dataset.rd,1); if(!rows.length)rows.push({a:"",b:""}); draw(); } });
+  $("#re_add").onclick=()=>{ sync(); rows.push({a:"",b:""}); draw(); };
+  $("#re_cancel").onclick=closeModal;
+  $("#re_save").onclick=()=>{ sync(); opts.onSave(rows.filter(r=>r.a.trim()&&r.b.trim())); closeModal(); };
+}
+document.body.addEventListener("click", e=>{
+  if(e.target.closest("#editLauncher")){
+    const cur=(state.prefs.links&&state.prefs.links.length)?state.prefs.links:LAUNCHER_LINKS;
+    rowsEditor({ title:"Edit launcher", icon:"&#9889;", aPh:"Name", bPh:"https://...",
+      rows:cur.map(l=>({a:l.name,b:l.url})),
+      onSave:rows=>{ savePrefs({links:rows.map(r=>({name:r.a.trim(),url:r.b.trim()}))}); toast("Launcher updated"); } });
+  }
+  if(e.target.closest("#cdCard")){
+    const cur=(state.prefs.countdowns&&state.prefs.countdowns.length)?state.prefs.countdowns:COUNTDOWNS;
+    rowsEditor({ title:"Edit countdowns", icon:"&#9992;", aPh:"Event name", bPh:"", bType:"date",
+      rows:cur.map(c=>({a:c.name,b:c.date})),
+      onSave:rows=>{ savePrefs({countdowns:rows.map(r=>({name:r.a.trim(),date:r.b}))}); toast("Countdowns updated"); } });
+  }
+});
 
 /* ---------- auth ---------- */
 $("#loginBtn").addEventListener("click", login);
@@ -539,6 +605,17 @@ function attachListeners(){
   listen("inventory", ()=>{ renderInventory(); });
   listen("wishlist",  ()=>{ renderWishlist(); });
   listen("recipes",   ()=>{ renderRecipes(); });
+  unsub.push(onSnapshot(doc(db,"users",state.user.uid,"settings","prefs"),
+    d=>{ state.prefs=d.data()||{}; renderHome(); },
+    err=>console.error("prefs", err)));
+}
+async function savePrefs(patch){
+  return setDoc(doc(db,"users",state.user.uid,"settings","prefs"), patch, {merge:true});
+}
+async function removeWithUndo(name, item, label){
+  const {id, ...data}=item;
+  await remove(name, id);
+  toast(label+" deleted", async()=>{ await setDoc(doc(db,"users",state.user.uid,name,id), data); toast(label+" restored"); });
 }
 function snap(s){ const a=[]; s.forEach(d=>a.push({id:d.id, ...d.data()})); return a; }
 async function save(name, data, id){
@@ -589,7 +666,8 @@ function renderHome(){
   const dueToday = open.filter(t=>t.due && daysUntil(t.due)===0).length;
   const overdue = open.filter(t=>t.due && daysUntil(t.due)<0).length;
   const streak = gymStreak();
-  const cd = COUNTDOWNS.map(c=>({...c,d:daysUntil(c.date)})).filter(c=>c.d>=0).sort((a,b)=>a.d-b.d)[0];
+  const cdList = (state.prefs.countdowns&&state.prefs.countdowns.length)?state.prefs.countdowns:COUNTDOWNS;
+  const cd = cdList.map(c=>({...c,d:daysUntil(c.date)})).filter(c=>c.d>=0).sort((a,b)=>a.d-b.d)[0];
 
   const navBadge=$("#navTodo");
   if(overdue+dueToday>0){ navBadge.style.display="inline"; navBadge.textContent=overdue+dueToday; } else navBadge.style.display="none";
@@ -598,7 +676,7 @@ function renderHome(){
     `<div class="stat" id="wxCard"><div class="lbl">&#9728; ${esc(WEATHER.name)}</div><div class="val">--</div><div class="note">loading</div></div>
      <div class="stat ${overdue?"danger":"accent"}"><div class="lbl">&#10003; Due today</div><div class="val">${dueToday}</div><div class="note">${overdue} overdue</div></div>
      <div class="stat ok"><div class="lbl">&#9211; Gym streak</div><div class="val">${streak}</div><div class="note">${streak===1?"day":"days"}</div></div>
-     <div class="stat amber"><div class="lbl">&#9992; ${cd?esc(cd.name):"Countdown"}</div><div class="val">${cd?cd.d:"--"}</div><div class="note">${cd?"days away":"none set"}</div></div>`;
+     <div class="stat amber" id="cdCard" style="cursor:pointer" title="Click to edit countdowns"><div class="lbl">&#9992; ${cd?esc(cd.name):"Countdown"}</div><div class="val">${cd?cd.d:"--"}</div><div class="note">${cd?"days away":"click to add"}</div></div>`;
   if(window.__wx) paintWeather(window.__wx);
 
   // most urgent todos: due date first (soonest), then priority
@@ -624,7 +702,8 @@ function renderHome(){
   // agenda
   renderHomeAgenda();
   // launcher
-  $("#launcher").innerHTML = LAUNCHER_LINKS.map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)} &#8599;</a>`).join("");
+  const links=(state.prefs.links&&state.prefs.links.length)?state.prefs.links:LAUNCHER_LINKS;
+  $("#launcher").innerHTML = links.map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)} &#8599;</a>`).join("");
 }
 function renderHomeAgenda(){
   if(!state.calToken){ $("#homeAgenda").innerHTML=`<div class="empty">Connect calendar to see your agenda.</div>`; return; }
@@ -661,6 +740,15 @@ function paintWeather(c){ const card=$("#wxCard"); if(!card||!c)return;
    TO-DO
    ============================================================ */
 $("#addTodoBtn").addEventListener("click", ()=>todoModal());
+$("#clearDoneBtn").addEventListener("click", async()=>{
+  const done=state.todos.filter(t=>t.done);
+  if(!done.length){ toast("Nothing completed to clear"); return; }
+  for(const t of done) await remove("todos", t.id);
+  toast(`Cleared ${done.length} task${done.length>1?"s":""}`, async()=>{
+    for(const t of done){ const {id,...data}=t; await setDoc(doc(db,"users",state.user.uid,"todos",id), data); }
+    toast("Tasks restored");
+  });
+});
 function todoModal(t={}){
   openModal(`<h3><span class="ic">&#10003;</span>${t.id?"Edit task":"New task"}</h3>
     <div class="field"><label>Title</label><input id="m_title" value="${esc(t.title||"")}" placeholder="What needs doing?"></div>
@@ -677,7 +765,7 @@ function todoModal(t={}){
       <button class="btn ghost" id="m_cancel">Cancel</button>
       <button class="btn" id="m_save">Save</button></div>`);
   $("#m_cancel").onclick=closeModal;
-  if(t.id)$("#m_del").onclick=()=>{ remove("todos",t.id); closeModal(); toast("Task deleted"); };
+  if(t.id)$("#m_del").onclick=()=>{ removeWithUndo("todos",t,"Task"); closeModal(); };
   $("#m_save").onclick=()=>{
     const title=$("#m_title").value.trim(); if(!title)return;
     save("todos",{title, priority:$("#m_pri").value, due:$("#m_due").value||null, notes:$("#m_notes").value.trim(), done:t.done||false}, t.id);
@@ -704,7 +792,7 @@ function renderTodos(){
 }
 document.body.addEventListener("click", e=>{
   const ed=e.target.closest("[data-edit-todo]"); if(ed){ const t=state.todos.find(x=>x.id===ed.dataset.editTodo); if(t)todoModal(t); }
-  const dl=e.target.closest("[data-del-todo]"); if(dl){ remove("todos",dl.dataset.delTodo); toast("Task deleted"); }
+  const dl=e.target.closest("[data-del-todo]"); if(dl){ const t=state.todos.find(x=>x.id===dl.dataset.delTodo); if(t)removeWithUndo("todos",t,"Task"); }
 });
 
 /* ============================================================
@@ -721,7 +809,7 @@ function wantModal(w={}){
       <button class="btn ghost" id="w_cancel">Cancel</button>
       <button class="btn" id="w_save">Save</button></div>`);
   $("#w_cancel").onclick=closeModal;
-  if(w.id)$("#w_del").onclick=()=>{ remove("wants",w.id); closeModal(); };
+  if(w.id)$("#w_del").onclick=()=>{ removeWithUndo("wants",w,"Idea"); closeModal(); };
   $("#w_save").onclick=()=>{ const title=$("#w_title").value.trim(); if(!title)return;
     save("wants",{title,tag:$("#w_tag").value.trim(),notes:$("#w_notes").value.trim()},w.id); closeModal(); toast("Saved"); };
 }
@@ -734,7 +822,7 @@ function renderWants(){
 }
 document.body.addEventListener("click", e=>{
   const ed=e.target.closest("[data-edit-want]"); if(ed){ const w=state.wants.find(x=>x.id===ed.dataset.editWant); if(w)wantModal(w); }
-  const dl=e.target.closest("[data-del-want]"); if(dl) remove("wants",dl.dataset.delWant);
+  const dl=e.target.closest("[data-del-want]"); if(dl){ const w=state.wants.find(x=>x.id===dl.dataset.delWant); if(w)removeWithUndo("wants",w,"Idea"); }
   const pr=e.target.closest("[data-promote]"); if(pr){ const w=state.wants.find(x=>x.id===pr.dataset.promote);
     if(w){ save("todos",{title:w.title,priority:"lo",due:null,notes:w.notes||"",done:false}); remove("wants",w.id); toast("Promoted to To-Do"); goto("todo"); } }
 });
@@ -772,7 +860,7 @@ function recipeModal(r={}){
       <button class="btn ghost" id="r_cancel">Cancel</button>
       <button class="btn" id="r_save">Save</button></div>`);
   $("#r_cancel").onclick=closeModal;
-  if(r.id)$("#r_del").onclick=()=>{ remove("recipes",r.id); closeModal(); toast("Recipe deleted"); };
+  if(r.id)$("#r_del").onclick=()=>{ removeWithUndo("recipes",r,"Recipe"); closeModal(); };
   $("#r_save").onclick=()=>{ const title=$("#r_title").value.trim(); if(!title)return;
     save("recipes",{title,servings:$("#r_serv").value.trim(),tags:$("#r_tags").value.trim(),
       ingredients:$("#r_ing").value,steps:$("#r_steps").value,link:$("#r_link").value.trim()},r.id);
@@ -881,7 +969,7 @@ function gymModal(g={}){
   }
   $("#g_kind").addEventListener("change", applyKind); applyKind();
   $("#g_cancel").onclick=closeModal;
-  if(g.id)$("#g_del").onclick=()=>{ remove("gym",g.id); closeModal(); };
+  if(g.id)$("#g_del").onclick=()=>{ removeWithUndo("gym",g,"Entry"); closeModal(); };
   $("#g_save").onclick=()=>{
     const k=$("#g_kind").value;
     const out={ date:$("#g_date").value, kind:k, notes:$("#g_notes").value.trim() };
@@ -1136,7 +1224,7 @@ function itemModal(it={}){
       <button class="btn ghost" id="i_cancel">Cancel</button>
       <button class="btn" id="i_save">Save</button></div>`);
   $("#i_cancel").onclick=closeModal;
-  if(it.id)$("#i_del").onclick=()=>{ remove("inventory",it.id); closeModal(); toast("Item deleted"); };
+  if(it.id)$("#i_del").onclick=()=>{ removeWithUndo("inventory",it,"Item"); closeModal(); };
   $("#i_save").onclick=()=>{ const name=$("#i_name").value.trim(); if(!name)return;
     save("inventory",{ name, qty:+$("#i_qty").value||1, binId:$("#i_bin").value||null,
       category:$("#i_cat").value.trim(), value:$("#i_val").value!==""?+$("#i_val").value:null,
@@ -1236,7 +1324,7 @@ function renderInvList(){
 }
 document.body.addEventListener("click", e=>{
   const ei=e.target.closest("[data-edit-item]"); if(ei){ const i=state.inventory.find(x=>x.id===ei.dataset.editItem); if(i)itemModal(i); }
-  const di=e.target.closest("[data-del-item]"); if(di) remove("inventory",di.dataset.delItem);
+  const di=e.target.closest("[data-del-item]"); if(di){ const it=state.inventory.find(x=>x.id===di.dataset.delItem); if(it)removeWithUndo("inventory",it,"Item"); }
   const eb=e.target.closest("[data-edit-bin]"); if(eb){ const b=state.bins.find(x=>x.id===eb.dataset.editBin); if(b)binModal(b); }
   const qb=e.target.closest("[data-qr-bin]"); if(qb){ const b=state.bins.find(x=>x.id===qb.dataset.qrBin); if(b)qrModal(b); }
 });
@@ -1316,7 +1404,7 @@ function wishModal(w={}){
       <button class="btn ghost" id="ws_cancel">Cancel</button>
       <button class="btn" id="ws_save">Save</button></div>`);
   $("#ws_cancel").onclick=closeModal;
-  if(w.id)$("#ws_del").onclick=()=>{ remove("wishlist",w.id); closeModal(); };
+  if(w.id)$("#ws_del").onclick=()=>{ removeWithUndo("wishlist",w,"Wish-list item"); closeModal(); };
   $("#ws_save").onclick=()=>{ const name=$("#ws_name").value.trim(); if(!name)return;
     save("wishlist",{name,link:$("#ws_link").value.trim(),price:$("#ws_price").value!==""?+$("#ws_price").value:null,
       priority:$("#ws_pri").value,notes:$("#ws_notes").value.trim()},w.id);
@@ -1342,7 +1430,7 @@ function renderWishlist(){
 }
 document.body.addEventListener("click", e=>{
   const ew=e.target.closest("[data-edit-wish]"); if(ew){ const w=state.wishlist.find(x=>x.id===ew.dataset.editWish); if(w)wishModal(w); }
-  const dw=e.target.closest("[data-del-wish]"); if(dw) remove("wishlist",dw.dataset.delWish);
+  const dw=e.target.closest("[data-del-wish]"); if(dw){ const w=state.wishlist.find(x=>x.id===dw.dataset.delWish); if(w)removeWithUndo("wishlist",w,"Wish-list item"); }
   const g=e.target.closest("[data-gotit]"); if(g){ const w=state.wishlist.find(x=>x.id===g.dataset.gotit);
     if(w){ save("inventory",{name:w.name,qty:1,binId:null,category:"",value:w.price!=null?+w.price:null,link:w.link||"",notes:w.notes||""});
       remove("wishlist",w.id); toast("Moved to Inventory"); } }
