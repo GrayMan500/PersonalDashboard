@@ -1204,9 +1204,12 @@ $("#invSearch").addEventListener("input", e=>{ state.invFilter.search=e.target.v
 $("#invCat").addEventListener("change", e=>{ state.invFilter.cat=e.target.value; renderInvList(); });
 $("#invBin").addEventListener("change", e=>{ state.invFilter.bin=e.target.value; renderInvList(); });
 
+function getLastBin(){ try{ const v=localStorage.getItem("cc_last_bin"); if(v && state.bins.some(b=>b.id===v)) return v; }catch(_){} return ""; }
+function setLastBin(v){ try{ localStorage.setItem("cc_last_bin", v||""); }catch(_){} }
 function itemModal(it={}){
+  const preBin = it.id ? (it.binId||"") : getLastBin();
   const opts = `<option value="">Loose / no bin</option>` +
-    state.bins.map(b=>`<option value="${b.id}"${it.binId===b.id?" selected":""}>${esc(b.name)}</option>`).join("");
+    state.bins.map(b=>`<option value="${b.id}"${preBin===b.id?" selected":""}>${esc(b.name)}</option>`).join("");
   openModal(`<h3><span class="ic">&#9707;</span>${it.id?"Edit item":"New item"}</h3>
     <div class="frow">
       <div class="field" style="flex:3"><label>Name</label><input id="i_name" value="${esc(it.name||"")}"></div>
@@ -1226,9 +1229,11 @@ function itemModal(it={}){
   $("#i_cancel").onclick=closeModal;
   if(it.id)$("#i_del").onclick=()=>{ removeWithUndo("inventory",it,"Item"); closeModal(); };
   $("#i_save").onclick=()=>{ const name=$("#i_name").value.trim(); if(!name)return;
-    save("inventory",{ name, qty:+$("#i_qty").value||1, binId:$("#i_bin").value||null,
+    const chosenBin=$("#i_bin").value||null;
+    save("inventory",{ name, qty:+$("#i_qty").value||1, binId:chosenBin,
       category:$("#i_cat").value.trim(), value:$("#i_val").value!==""?+$("#i_val").value:null,
       link:$("#i_link").value.trim(), notes:$("#i_notes").value.trim() }, it.id);
+    setLastBin(chosenBin||"");
     closeModal(); toast(it.id?"Item updated":"Item added"); };
 }
 function binModal(b={}){
