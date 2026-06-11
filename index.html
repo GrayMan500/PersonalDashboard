@@ -211,16 +211,29 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
 .toast.show{opacity:1;bottom:30px}
 @media(max-width:760px){
   #app{grid-template-columns:1fr}
-  .sidebar{position:sticky;top:0;z-index:30;height:auto;flex-direction:column;gap:9px;padding:10px 12px 8px;border-right:0;border-bottom:1px solid var(--line)}
-  .brand{border-bottom:0;padding:0;margin:0}
-  .brand h1{font-size:15px}
-  .nav{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding-bottom:2px;-webkit-overflow-scrolling:touch}
-  .nav button{width:auto;flex:0 0 auto;white-space:nowrap;padding:8px 13px;font-size:13px;cursor:pointer}
-  .nav .badge{margin-left:6px}
-  .userbox{position:absolute;top:12px;right:12px;border-top:0;padding:0;width:auto;gap:8px}
+  /* slim top header: brand left, avatar right */
+  .sidebar{position:sticky;top:0;z-index:30;height:auto;flex-direction:row;align-items:center;justify-content:space-between;
+    padding:9px 14px;border-right:0;border-bottom:1px solid var(--line)}
+  .brand{border-bottom:0;padding:0;margin:0;gap:8px}
+  .brand .logo{width:27px;height:27px;font-size:14px;border-radius:7px}
+  .brand h1{font-size:14px}
+  .brand small{display:none}
+  .userbox{position:static;border-top:0;padding:0;width:auto;gap:8px}
   .userbox .meta{display:none}
-  .userbox img{width:30px;height:30px}
-  .main{padding:16px 14px 48px;max-width:100%}
+  .userbox img{width:28px;height:28px}
+  /* bottom tab bar */
+  .nav{position:fixed;bottom:0;left:0;right:0;z-index:40;flex-direction:row;gap:0;
+    background:rgba(12,15,20,.94);backdrop-filter:blur(12px);border-top:1px solid var(--line);
+    padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  .nav button{flex:1 1 0;min-width:0;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    padding:5px 2px;font-size:9px;letter-spacing:0;text-align:center;position:relative;border-radius:8px}
+  .nav button .ic{width:auto;font-size:17px}
+  .nav button .nlabel{display:none}
+  .nav button::after{content:attr(data-short);font-size:9px;font-weight:500;line-height:1}
+  .nav button.active{box-shadow:none}
+  .nav .badge{position:absolute;top:1px;right:50%;transform:translateX(17px);margin:0;padding:0 5px}
+  /* content sits between header and tab bar */
+  .main{padding:15px 14px calc(88px + env(safe-area-inset-bottom));max-width:100%}
   .m-hide{display:none!important}
   .phead{margin-bottom:14px}
   .phead h2{font-size:21px}
@@ -250,7 +263,7 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
   #invCat,#invBin{min-width:0!important;flex:1 1 40%}
   .seg{width:100%;display:flex}
   .seg-btn{flex:1}
-  .modal-bg{padding:20px 12px}
+  .modal-bg{padding:16px 10px}
   .modal{padding:18px 16px}
 }
 </style>
@@ -281,13 +294,13 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
       <div><h1>Command</h1><small>CENTER v1</small></div>
     </div>
     <nav class="nav" id="nav">
-      <button data-page="home" class="active"><span class="ic">&#9632;</span>Home</button>
-      <button data-page="todo"><span class="ic">&#10003;</span>To-Do<span class="badge" id="navTodo" style="display:none"></span></button>
-      <button data-page="calendar"><span class="ic">&#9783;</span>Calendar</button>
-      <button data-page="gym"><span class="ic">&#9211;</span>Gym &amp; Nutrition</button>
-      <button data-page="want"><span class="ic">&#9788;</span>Want To Do</button>
-      <button data-page="inventory"><span class="ic">&#9707;</span>Inventory</button>
-      <button data-page="recipes"><span class="ic">&#9776;</span>Recipes</button>
+      <button data-page="home" class="active" data-short="Home"><span class="ic">&#9632;</span><span class="nlabel">Home</span></button>
+      <button data-page="todo" data-short="To-Do"><span class="ic">&#10003;</span><span class="nlabel">To-Do</span><span class="badge" id="navTodo" style="display:none"></span></button>
+      <button data-page="calendar" data-short="Cal"><span class="ic">&#9783;</span><span class="nlabel">Calendar</span></button>
+      <button data-page="gym" data-short="Gym"><span class="ic">&#9211;</span><span class="nlabel">Gym &amp; Nutrition</span></button>
+      <button data-page="want" data-short="Want"><span class="ic">&#9788;</span><span class="nlabel">Want To Do</span></button>
+      <button data-page="inventory" data-short="Inv"><span class="ic">&#9707;</span><span class="nlabel">Inventory</span></button>
+      <button data-page="recipes" data-short="Recipes"><span class="ic">&#9776;</span><span class="nlabel">Recipes</span></button>
     </nav>
     <div class="userbox" id="userbox"></div>
   </aside>
