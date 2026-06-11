@@ -221,16 +221,37 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
   .userbox .meta{display:none}
   .userbox img{width:30px;height:30px}
   .main{padding:16px 14px 48px;max-width:100%}
-  .phead{margin-bottom:16px}
-  .phead h2{font-size:22px}
-  .calbar{flex-wrap:wrap}
+  .m-hide{display:none!important}
+  .phead{margin-bottom:14px}
+  .phead h2{font-size:21px}
+  .phead .sub{font-size:10px}
+  .phead .btn{padding:7px 11px;font-size:12px}
+  .stats{grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:14px}
+  .stat{padding:11px 13px}
+  .stat .val{font-size:24px}
+  .stat .lbl{font-size:11px}
+  .panel{padding:13px 14px}
+  .panels{grid-template-columns:1fr}
+  .row{gap:9px;padding:8px 0}
+  .row .t b{font-size:13px}
+  .row .t small{font-size:10px}
+  .pill{font-size:9px;padding:2px 6px}
+  .listcard .row{padding:10px 13px}
+  .goal-actions{margin-left:0!important;width:100%}
+  .gym-sess{padding:12px 13px}
+  .calbar{flex-wrap:wrap;gap:8px}
+  .calbar .range{font-size:14px}
   .week{grid-template-columns:1fr}
   .gcal{gap:4px}
   .gcal .gdow{font-size:9px}
-  .gday{min-height:46px;padding:4px 5px}
+  .gday{min-height:44px;padding:4px 5px}
   .gday .glabel{display:none}
-  .panels{grid-template-columns:1fr}
+  .gday .ndot{width:6px;height:6px;top:4px;right:5px}
+  #invCat,#invBin{min-width:0!important;flex:1 1 40%}
+  .seg{width:100%;display:flex}
+  .seg-btn{flex:1}
   .modal-bg{padding:20px 12px}
+  .modal{padding:18px 16px}
 }
 </style>
 </head>
@@ -682,9 +703,10 @@ function renderHome(){
   if(overdue+dueToday>0){ navBadge.style.display="inline"; navBadge.textContent=overdue+dueToday; } else navBadge.style.display="none";
 
   $("#homeStats").innerHTML =
-    `<div class="stat" id="wxCard"><div class="lbl">&#9728; ${esc(WEATHER.name)}</div><div class="val">--</div><div class="note">loading</div></div>
+    `<div class="stat m-hide" id="wxCard"><div class="lbl">&#9728; ${esc(WEATHER.name)}</div><div class="val">--</div><div class="note">loading</div></div>
      <div class="stat ${overdue?"danger":"accent"}"><div class="lbl">&#10003; Due today</div><div class="val">${dueToday}</div><div class="note">${overdue} overdue</div></div>
      <div class="stat ok"><div class="lbl">&#9211; Gym streak</div><div class="val">${streak}</div><div class="note">${streak===1?"day":"days"}</div></div>
+     <div class="stat amber"><div class="lbl">&#9670; Nutrition streak</div><div class="val">${nutritionStreak()}</div><div class="note">days on goal</div></div>
      <div class="stat amber" id="cdCard" style="cursor:pointer" title="Click to edit countdowns"><div class="lbl">&#9992; ${cd?esc(cd.name):"Countdown"}</div><div class="val">${cd?cd.d:"--"}</div><div class="note">${cd?"days away":"click to add"}</div></div>`;
   if(window.__wx) paintWeather(window.__wx);
 
@@ -1065,7 +1087,7 @@ function renderGoalPanel(){
   $("#goalBody").innerHTML=`
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <div class="chips">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join("")}</div>
-      <div style="display:flex;gap:8px;margin-left:auto;align-items:center">
+      <div class="goal-actions" style="display:flex;gap:8px;margin-left:auto;align-items:center">
         <span style="font-size:12px;color:var(--txt-2)">Today:</span>
         <button class="btn sm ${mark&&mark.met===true?"":"ghost"}" data-nut-mark="met">Met &#10003;</button>
         <button class="btn sm ghost" data-nut-mark="missed" style="${mark&&mark.met===false?"border-color:var(--danger);color:var(--danger)":""}">Missed</button>
@@ -1111,8 +1133,8 @@ function renderGym(){
     `<div class="stat ok"><div class="lbl">&#9211; Gym streak</div><div class="val">${streak}</div><div class="note">${streak===1?"day":"days"}</div></div>
      <div class="stat amber"><div class="lbl">&#9670; Nutrition streak</div><div class="val">${nstreak}</div><div class="note">${nstreak===1?"day":"days"} on goal</div></div>
      <div class="stat accent"><div class="lbl">&#9636; This month</div><div class="val">${monthWk}</div><div class="note">workouts</div></div>
-     <div class="stat"><div class="lbl">&#9789; Rest days</div><div class="val">${monthRest}</div><div class="note">this month</div></div>
-     <div class="stat"><div class="lbl">&#9733; Top PR</div><div class="val" style="font-size:18px">${topPr?topPr[1]+" lb":"--"}</div><div class="note">${topPr?esc(topPr[0]):"log to track"}</div></div>`;
+     <div class="stat m-hide"><div class="lbl">&#9789; Rest days</div><div class="val">${monthRest}</div><div class="note">this month</div></div>
+     <div class="stat m-hide"><div class="lbl">&#9733; Top PR</div><div class="val" style="font-size:18px">${topPr?topPr[1]+" lb":"--"}</div><div class="note">${topPr?esc(topPr[0]):"log to track"}</div></div>`;
   renderGoalPanel();
   renderGymCal();
   renderGymRecent();
