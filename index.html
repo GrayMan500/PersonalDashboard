@@ -115,7 +115,10 @@ button{font-family:var(--body);cursor:pointer}
 /* gym month calendar */
 .gcal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .gcal .gdow{text-align:center;font-family:var(--mono);font-size:10px;color:var(--txt-3);letter-spacing:1px;padding-bottom:2px}
-.gday{min-height:58px;border:1px solid var(--line);border-radius:8px;padding:6px 7px;cursor:pointer;display:flex;flex-direction:column;background:var(--panel);transition:.12s}
+.gday{min-height:58px;border:1px solid var(--line);border-radius:8px;padding:6px 7px;cursor:pointer;display:flex;flex-direction:column;background:var(--panel);transition:.12s;position:relative}
+.gday .ndot{position:absolute;top:6px;right:7px;width:7px;height:7px;border-radius:50%}
+.gday .ndot.met{background:var(--amber);box-shadow:0 0 6px -1px var(--amber)}
+.gday .ndot.miss{background:var(--danger);opacity:.55}
 .gday:hover{border-color:var(--line-2)}
 .gday .gnum{font-family:var(--mono);font-size:12px;color:var(--txt-2)}
 .gday .glabel{margin-top:auto;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.3px}
@@ -260,7 +263,7 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
       <button data-page="home" class="active"><span class="ic">&#9632;</span>Home</button>
       <button data-page="todo"><span class="ic">&#10003;</span>To-Do<span class="badge" id="navTodo" style="display:none"></span></button>
       <button data-page="calendar"><span class="ic">&#9783;</span>Calendar</button>
-      <button data-page="gym"><span class="ic">&#9211;</span>Gym Log</button>
+      <button data-page="gym"><span class="ic">&#9211;</span>Gym &amp; Nutrition</button>
       <button data-page="want"><span class="ic">&#9788;</span>Want To Do</button>
       <button data-page="inventory"><span class="ic">&#9707;</span>Inventory</button>
       <button data-page="recipes"><span class="ic">&#9776;</span>Recipes</button>
@@ -336,10 +339,14 @@ label{font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-
     <!-- ---------- GYM ---------- -->
     <section class="page" id="page-gym">
       <div class="phead">
-        <div><h2>Gym Log</h2><div class="sub">Calendar, workouts &amp; rest days</div></div>
+        <div><h2>Gym &amp; Nutrition</h2><div class="sub">Workouts, rest days &amp; nutrition goals</div></div>
         <button class="btn" id="addGymBtn">&#43; Log session</button>
       </div>
       <div class="grid stats" id="gymStats"></div>
+      <div class="panel" style="margin-bottom:16px">
+        <h3><span class="ic">&#9670;</span>Nutrition goal<span class="more" id="editGoal">EDIT</span></h3>
+        <div id="goalBody"></div>
+      </div>
       <div class="calbar">
         <button class="iconbtn" id="gymPrev">&#8249;</button>
         <button class="iconbtn" id="gymNext">&#8250;</button>
@@ -455,7 +462,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const state = { user:null, todos:[], wants:[], gym:[], events:[],
+const state = { user:null, todos:[], wants:[], gym:[], events:[], nutrition:[], nutritionGoals:[],
                 bins:[], inventory:[], wishlist:[], recipes:[], prefs:{}, invFilter:{search:"",cat:"all",bin:"all"}, pendingBin:null,
                 calToken:null, weekStart:startOfWeek(new Date()), gymMonth:firstOfMonth(new Date()) };
 let unsub = [];
@@ -605,6 +612,8 @@ function attachListeners(){
   listen("inventory", ()=>{ renderInventory(); });
   listen("wishlist",  ()=>{ renderWishlist(); });
   listen("recipes",   ()=>{ renderRecipes(); });
+  listen("nutrition",      ()=>{ renderGym(); });
+  listen("nutritionGoals", ()=>{ renderGym(); });
   unsub.push(onSnapshot(doc(db,"users",state.user.uid,"settings","prefs"),
     d=>{ state.prefs=d.data()||{}; renderHome(); },
     err=>console.error("prefs", err)));
@@ -929,6 +938,10 @@ function gymModal(g={}){
         ${["Easy","Moderate","Hard","Max"].map(o=>`<option${(g.effort||"Moderate")===o?" selected":""}>${o}</option>`).join("")}</select></div>
     </div>
     <div id="g_rest"><div class="empty" style="padding:4px 0">Logged as a rest day. Add a note below if you want.</div></div>
+    <div class="field" style="margin-top:13px"><label>Nutrition goal</label><select id="g_nut">
+      <option value="">Not tracked</option>
+      <option value="met"${(()=>{const m=nutritionFor(g.date||ymd(new Date()));return m&&m.met===true?" selected":"";})()}>Met goal &#10003;</option>
+      <option value="missed"${(()=>{const m=nutritionFor(g.date||ymd(new Date()));return m&&m.met===false?" selected":"";})()}>Missed</option></select></div>
     <div class="field" style="margin-top:13px"><label>Notes</label><textarea id="g_notes" rows="2">${esc(g.notes||"")}</textarea></div>
     <div class="modal-actions">
       ${g.id?`<button class="btn ghost left" id="g_del">Delete</button>`:""}
@@ -981,11 +994,93 @@ function gymModal(g={}){
       out.activity=$("#g_activity").value.trim()||"Cardio";
       out.distance=$("#g_dist").value.trim(); out.duration=$("#g_time").value.trim(); out.effort=$("#g_effort").value;
     }
+    const nv=$("#g_nut").value;
+    const emptyLift = !g.id && k==="lift" && (!out.type||out.type==="Lift") && (!out.exercises||!out.exercises.length) && !out.notes;
+    if(emptyLift && nv){ // nutrition-only mark on an empty day - don't create a blank workout
+      markNutrition($("#g_date").value, nv==="met"?true:false);
+      closeModal(); toast("Nutrition marked"); return;
+    }
     save("gym", out, g.id);
+    markNutrition($("#g_date").value, nv==="met"?true:nv==="missed"?false:null);
     closeModal(); toast(k==="rest"?"Rest day logged":"Workout logged");
   };
 }
 function isWorkout(g){ return g.kind!=="rest"; }
+
+/* ---------- nutrition ---------- */
+function goalFor(date){
+  const gs=[...state.nutritionGoals].filter(g=>g.effective<=date).sort((a,b)=>b.effective.localeCompare(a.effective));
+  return gs[0]||null;
+}
+function nutritionFor(date){ return state.nutrition.find(n=>n.date===date)||null; }
+async function markNutrition(date, met){
+  const ex=nutritionFor(date);
+  if(met===null){ if(ex) await remove("nutrition", ex.id); return; }
+  if(ex) await save("nutrition",{met},ex.id);
+  else await save("nutrition",{date, met});
+}
+function nutritionStreak(){
+  const map={}; state.nutrition.forEach(n=>map[n.date]=n.met);
+  let cur=new Date(); cur.setHours(0,0,0,0);
+  if(map[ymd(cur)]===false) return 0;          // explicitly missed today
+  if(map[ymd(cur)]!==true) cur.setDate(cur.getDate()-1); // today not marked yet - pending
+  let s=0, guard=0;
+  while(guard++<1000 && map[ymd(cur)]===true){ s++; cur.setDate(cur.getDate()-1); }
+  return s;
+}
+function goalModal(){
+  const today=ymd(new Date());
+  const cur=goalFor(today)||{};
+  openModal(`<h3><span class="ic">&#9670;</span>Set nutrition goal</h3>
+    <div style="font-size:12px;color:var(--txt-2);margin-bottom:13px">Applies to every day from today forward. Past days keep the goal that was active then.</div>
+    <div class="frow">
+      <div class="field"><label>Calories</label><input type="number" id="n_cal" value="${cur.calories!=null?cur.calories:""}" min="0" placeholder="2800"></div>
+      <div class="field"><label>Protein (g)</label><input type="number" id="n_pro" value="${cur.protein!=null?cur.protein:""}" min="0" placeholder="180"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Fat (g)</label><input type="number" id="n_fat" value="${cur.fat!=null?cur.fat:""}" min="0" placeholder="90"></div>
+      <div class="field"><label>Carbs (g)</label><input type="number" id="n_carb" value="${cur.carbs!=null?cur.carbs:""}" min="0" placeholder="320"></div>
+    </div>
+    <div class="modal-actions"><button class="btn ghost" id="n_cancel">Cancel</button><button class="btn" id="n_save">Set goal</button></div>`);
+  $("#n_cancel").onclick=closeModal;
+  $("#n_save").onclick=()=>{
+    const cal=$("#n_cal").value, pro=$("#n_pro").value, fat=$("#n_fat").value, carb=$("#n_carb").value;
+    if(cal===""&&pro===""&&fat===""&&carb===""){ return; }
+    const data={ calories:cal!==""?+cal:null, protein:pro!==""?+pro:null, fat:fat!==""?+fat:null, carbs:carb!==""?+carb:null, effective:today };
+    const ex=state.nutritionGoals.find(g=>g.effective===today);   // re-setting today just updates today's goal
+    save("nutritionGoals", data, ex?ex.id:undefined);
+    closeModal(); toast("Nutrition goal set");
+  };
+}
+function renderGoalPanel(){
+  const today=ymd(new Date());
+  const g=goalFor(today);
+  const mark=nutritionFor(today);
+  if(!g){ $("#goalBody").innerHTML=`<div class="empty">No goal set yet. Hit EDIT to set daily calories &amp; macros.</div>`; return; }
+  const chips=[];
+  if(g.calories!=null)chips.push(`${g.calories} cal`);
+  if(g.protein!=null)chips.push(`P ${g.protein}g`);
+  if(g.fat!=null)chips.push(`F ${g.fat}g`);
+  if(g.carbs!=null)chips.push(`C ${g.carbs}g`);
+  $("#goalBody").innerHTML=`
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div class="chips">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join("")}</div>
+      <div style="display:flex;gap:8px;margin-left:auto;align-items:center">
+        <span style="font-size:12px;color:var(--txt-2)">Today:</span>
+        <button class="btn sm ${mark&&mark.met===true?"":"ghost"}" data-nut-mark="met">Met &#10003;</button>
+        <button class="btn sm ghost" data-nut-mark="missed" style="${mark&&mark.met===false?"border-color:var(--danger);color:var(--danger)":""}">Missed</button>
+        ${mark?`<button class="iconbtn" data-nut-mark="clear" title="Clear mark">&#10005;</button>`:""}
+      </div>
+    </div>`;
+}
+document.body.addEventListener("click", e=>{
+  if(e.target.closest("#editGoal")){ goalModal(); return; }
+  const nm=e.target.closest("[data-nut-mark]");
+  if(nm){ const v=nm.dataset.nutMark;
+    markNutrition(ymd(new Date()), v==="met"?true:v==="missed"?false:null);
+    toast(v==="met"?"Marked today as goal met":v==="missed"?"Marked today as missed":"Mark cleared"); }
+});
+
 function dayClass(g){ return g.kind==="cardio"?"cardio":(g.kind==="rest"?"rest":"lift"); }
 function dayLabel(g){ return g.kind==="cardio"?(g.activity||"Cardio"):(g.kind==="rest"?"Rest":(g.type||"Lift")); }
 function gymStreak(){
@@ -1011,11 +1106,14 @@ function renderGym(){
   const monthWk=state.gym.filter(g=>inMonth(g)&&isWorkout(g)).length;
   const monthRest=state.gym.filter(g=>inMonth(g)&&g.kind==="rest").length;
   const prs=gymPRs(); const topPr=Object.entries(prs).sort((a,b)=>b[1]-a[1])[0];
+  const nstreak=nutritionStreak();
   $("#gymStats").innerHTML =
-    `<div class="stat ok"><div class="lbl">&#9211; Current streak</div><div class="val">${streak}</div><div class="note">${streak===1?"day":"days"}</div></div>
+    `<div class="stat ok"><div class="lbl">&#9211; Gym streak</div><div class="val">${streak}</div><div class="note">${streak===1?"day":"days"}</div></div>
+     <div class="stat amber"><div class="lbl">&#9670; Nutrition streak</div><div class="val">${nstreak}</div><div class="note">${nstreak===1?"day":"days"} on goal</div></div>
      <div class="stat accent"><div class="lbl">&#9636; This month</div><div class="val">${monthWk}</div><div class="note">workouts</div></div>
      <div class="stat"><div class="lbl">&#9789; Rest days</div><div class="val">${monthRest}</div><div class="note">this month</div></div>
-     <div class="stat amber"><div class="lbl">&#9733; Top PR</div><div class="val" style="font-size:18px">${topPr?topPr[1]+" lb":"--"}</div><div class="note">${topPr?esc(topPr[0]):"log to track"}</div></div>`;
+     <div class="stat"><div class="lbl">&#9733; Top PR</div><div class="val" style="font-size:18px">${topPr?topPr[1]+" lb":"--"}</div><div class="note">${topPr?esc(topPr[0]):"log to track"}</div></div>`;
+  renderGoalPanel();
   renderGymCal();
   renderGymRecent();
 }
@@ -1029,10 +1127,13 @@ function renderGymCal(){
   const todayStr=ymd(new Date());
   let html=["S","M","T","W","T","F","S"].map(d=>`<div class="gdow">${d}</div>`).join("");
   for(let i=0;i<startDow;i++) html+=`<div class="gday blank"></div>`;
+  const nmap={}; state.nutrition.forEach(n=>nmap[n.date]=n.met);
   for(let d=1; d<=daysIn; d++){
     const date=`${yr}-${String(mo+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
     const g=byDate[date];
+    const nut=nmap[date];
     html+=`<div class="gday ${g?dayClass(g):""} ${date===todayStr?"today":""}" data-gymday="${date}">
+      ${nut!==undefined?`<span class="ndot ${nut?"met":"miss"}" title="Nutrition ${nut?"goal met":"missed"}"></span>`:""}
       <span class="gnum">${d}</span>${g?`<span class="glabel">${esc(dayLabel(g))}</span>`:""}</div>`;
   }
   $("#gymCal").innerHTML=html;
